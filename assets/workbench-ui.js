@@ -1,6 +1,8 @@
 (() => {
   const {clamp}=EMPhysics;
   const memory=new Map();
+  const defaultPlanes={"particle-apps/aurora":"xz","particle-apps/linear":"xz","magnetic-force/particle":"xz","magnetic-force/motor":"yz",
+    "induction/magnet":"xz","induction/rotate":"yz","induction/transformer":"xz"};
   const url=(bench,mode)=>"#labs/"+bench.id+(mode?"/"+mode:"");
   const shortcuts={
     "biot/element":[["平行", {x:16,y:0,z:0,theta:90,phi:0}],["垂直",{x:0,y:16,z:0,theta:90,phi:0}],["離開 xy 平面",{x:5,y:12,z:8,theta:90,phi:0}]],
@@ -10,6 +12,7 @@
     "potential-map/charges":[["等量異號中點",{q:6,q2:-6,x:0,y:0,z:0}],["等量同號中點",{q:6,q2:6,x:0,y:0,z:0}]],
     "magnetic-force/particle":[["平行：直線",{theta:0}],["垂直：圓周",{theta:90}],["斜入射：螺旋",{theta:65}]],
     "magnetic-force/motor":[["0°",{theta:0}],["90°",{theta:90}],["180°",{theta:180}],["270°",{theta:270}]],
+    "particle-apps/aurora":[["小夾角：進入大氣",{pitch:0,phase:100}],["大夾角：磁鏡折返",{pitch:55,phase:55}]],
     "induction/enter":[["進入",{phase:18}],["全在場內",{phase:50}],["離開",{phase:82}]],
     "induction/magnet":[["接近",{phase:38}],["線圈中央",{phase:50}],["離開",{phase:62}]],
     "induction/rotate":[["初始",{phase:0,cycles:1}],["四分之一圈",{phase:25,cycles:1}]],
@@ -18,9 +21,10 @@
   EM.mountWorkbench=(root,bench,id)=>{
     const mode=bench.modes.find(m=>m.id===id)||bench.modes[0], key=bench.id+"/"+mode.id;
     const defaults=Object.fromEntries(mode.controls.map(c=>[c.key,c.value]));
-    const saved=memory.get(key)||{p:{...defaults},camera:{...bench.camera},state:{}};
+    const saved=memory.get(key)||{p:{...defaults},camera:{...bench.camera},state:{},
+      view:{dimension:"3d",plane:defaultPlanes[key]||"xy"}};
     memory.set(key,saved);
-    const {p,camera,state}=saved, canRecord=bench.id==="potential-map";
+    const {p,camera,state,view}=saved, canRecord=bench.id==="potential-map"&&mode.id!=="field-lines";
     const playKey=mode.animate?(mode.id==="motor"?"theta":"phase"):null;
     const scenes=shortcuts[key]||[];
     root.innerHTML=`<div class="shell page bench-page">
@@ -30,6 +34,18 @@
       <div class="lab-observation"><strong>帶著一個問題看</strong><p>${mode.task}</p></div>
       <div class="lab-shell bench-shell">
         <div class="bench-visual">
+          <div class="bench-view-controls">
+            <div class="action-row" role="group" aria-label="顯示模式">
+              <button class="button" data-dimension="2d" type="button" aria-pressed="false">2D 平面</button>
+              <button class="button" data-dimension="3d" type="button" aria-pressed="true">3D 空間</button>
+            </div>
+            <div class="action-row" id="bench-planes" role="group" aria-label="選擇 2D 平面" hidden>
+              <button class="button" data-plane="xy" type="button" aria-pressed="false">XY</button>
+              <button class="button" data-plane="xz" type="button" aria-pressed="false">XZ</button>
+              <button class="button" data-plane="yz" type="button" aria-pressed="false">YZ</button>
+            </div>
+          </div>
+          <p class="small muted bench-view-hint" id="bench-plane-hint" hidden></p>
           <div id="bench-plot" class="bench-plot" tabindex="0" role="group" aria-label="三維視窗。拖曳或用方向鍵旋轉；也可用下方滑桿。"></div>
           <div class="bench-camera" aria-label="三維視角">
             <span>拖曳旋轉・⊙ 出畫面／⊗ 入畫面</span>
@@ -62,6 +78,23 @@
     const find=sel=>root.querySelector(sel), plot=find("#bench-plot"), graph=find("#bench-graph"), readouts=find("#bench-readouts"), play=find("#bench-play");
     const pControls=[...root.querySelectorAll("[data-param]")], viewControls=[...root.querySelectorAll("[data-view]")];
     let frame=0, loop=0, mouse=null, last=0;
+    function updateView(){
+      const flat=view.dimension==="2d";
+      plot.dataset.dimension=view.dimension;
+      plot.tabIndex=flat?-1:0;
+      plot.setAttribute("aria-label",flat?view.plane.toUpperCase()+" 平面視窗":"三維視窗。拖曳或用方向鍵旋轉。");
+      find("#bench-planes").hidden=!flat;
+      find(".bench-camera").hidden=flat;
+      find(".bench-camera-settings").hidden=flat;
+      const hint=find("#bench-plane-hint");
+      hint.hidden=!flat;
+      if(flat)hint.textContent="箭頭顯示平面分量。⊙ 表示朝向觀察者，⊗ 表示背離觀察者。";
+      for(const button of root.querySelectorAll("[data-dimension],[data-plane]")){
+        const active=button.dataset.dimension===view.dimension||button.dataset.plane===view.plane;
+        button.setAttribute("aria-pressed",String(active));
+        button.classList.toggle("primary",active);
+      }
+    }
     function controls(){
       for(const el of pControls){
         const k=el.dataset.param, c=mode.controls.find(c=>c.key===k);
@@ -76,7 +109,8 @@
     }
     function draw(){
       controls();
-      const r=bench.draw(mode.id,p,camera,state);
+      const projection=view.dimension==="2d"?{plane:view.plane,zoom:1}:camera;
+      const r=bench.draw(mode.id,p,projection,state);
       plot.innerHTML=r.diagram;
       readouts.innerHTML=r.rows.map(([k,label,value])=>`<div><dt>${label}</dt><dd data-reading="${k}">${value}</dd></div>`).join("");
       find(".bench-legend").innerHTML=r.legend.map(([c,name])=>`<li><span aria-hidden="true" style="--swatch:${c}"></span><span>${name}</span></li>`).join("");
@@ -112,13 +146,21 @@
       Object.assign(camera,mode==="xy"?{yaw:0,pitch:90,zoom:1}:mode==="xz"?{yaw:0,pitch:0,zoom:1}:bench.camera);
       queue();
     });
+    find(".bench-view-controls").addEventListener("click",e=>{
+      const button=e.target.closest("button");
+      if(!button)return;
+      if(button.dataset.dimension)view.dimension=button.dataset.dimension;
+      if(button.dataset.plane)view.plane=button.dataset.plane;
+      updateView();
+      queue();
+    });
     function turn(dx,dy){
       camera.yaw=((camera.yaw+dx+540)%360)-180;
       camera.pitch=clamp(camera.pitch+dy,-85,90);
       queue();
     }
     plot.addEventListener("pointerdown",e=>{
-      if(e.button!==0||mouse)return;
+      if(view.dimension!=="3d"||e.button!==0||mouse)return;
       mouse={id:e.pointerId,x:e.clientX,y:e.clientY};plot.setPointerCapture(e.pointerId);
     });
     plot.addEventListener("pointermove",e=>{
@@ -129,7 +171,7 @@
     for(const event of ["pointerup","pointercancel","lostpointercapture"])plot.addEventListener(event,e=>{if(mouse?.id===e.pointerId)mouse=null;});
     plot.addEventListener("keydown",e=>{
       const step={ArrowLeft:[-5,0],ArrowRight:[5,0],ArrowUp:[0,5],ArrowDown:[0,-5]}[e.key];
-      if(step){e.preventDefault();turn(...step);}
+      if(step&&view.dimension==="3d"){e.preventDefault();turn(...step);}
     });
     if(playKey)graph.addEventListener("click",e=>{
       const svg=graph.querySelector("svg"), box=svg.getBoundingClientRect(), x=(e.clientX-box.left)/box.width;
@@ -151,6 +193,7 @@
         delete state.a;notice.textContent="已清除起點 A。";queue();
       }
     });
+    updateView();
     draw();
     return ()=>{stop();if(frame)cancelAnimationFrame(frame);};
   };

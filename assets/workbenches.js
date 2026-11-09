@@ -8,6 +8,17 @@
   const pick=(key,label,choices,value)=>({key,label,choices,value});
   const item=(key,label,value)=>[key,label,value];
   const txt=(s)=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const planes={
+    xy:{axes:[0,1],normal:[0,0,1]},
+    xz:{axes:[0,2],normal:[0,-1,0]},
+    yz:{axes:[1,2],normal:[1,0,0]}
+  };
+  function planePoint(axes,a,b,origin=zero){
+    const point=[...origin];
+    point[axes[0]]=a;
+    point[axes[1]]=b;
+    return point;
+  }
   const path=(points,color,w=1.8,dash="")=>points.length?`<polyline fill="none" points="${points.map(v=>v.map(n=>n.toFixed(2)).join(",")).join(" ")}" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" ${dash?`stroke-dasharray="${dash}"`:""}/>`:"";
   const arrow2=(a,b,c,w=2)=>{
     const d=sub(b,a), n=length(d);
@@ -15,33 +26,47 @@
     const [x,y]=unit(d), tip=clamp(n*.42,3,9), h=sub(b,mul([x,y],tip));
     return path([a,b],c,w)+`<polygon fill="${c}" points="${[b,sum(h,mul([-y,x],tip*.5)),sub(h,mul([-y,x],tip*.5))].map(v=>v.join(",")).join(" ")}"/>`;
   };
-  function scene(camera,extent=30,label="可旋轉的三維模型"){
-    const W=560,H=390,yaw=rad(camera.yaw),pitch=rad(camera.pitch), scale=H*.39/extent*camera.zoom;
-    const proj=([x,y,z])=>[W/2+scale*(Math.cos(yaw)*x-Math.sin(yaw)*y),
+  function scene(camera,extent=30,label="實驗模型",grid=true){
+    const plane=planes[camera.plane];
+    const W=560,H=390,yaw=rad(camera.yaw??0),pitch=rad(camera.pitch??0), scale=H*.39/extent*camera.zoom;
+    const rotate=([x,y,z])=>[W/2+scale*(Math.cos(yaw)*x-Math.sin(yaw)*y),
       H/2-scale*(Math.cos(pitch)*z+Math.sin(pitch)*(Math.sin(yaw)*x+Math.cos(yaw)*y))];
-    const toward=[-Math.sin(yaw)*Math.cos(pitch),-Math.cos(yaw)*Math.cos(pitch),Math.sin(pitch)];
+    const proj=plane?point=>[W/2+scale*point[plane.axes[0]],H/2-scale*point[plane.axes[1]]]:rotate;
+    const toward=plane?.normal||[-Math.sin(yaw)*Math.cos(pitch),-Math.cos(yaw)*Math.cos(pitch),Math.sin(pitch)];
     let out="", tags=[];
     const draw=(nodes,c,w,d)=>{out+=path(nodes.map(proj),c,w,d);};
     const polygon=(nodes,fill,opacity=.17)=>{out+=`<polygon points="${nodes.map(x=>proj(x).join(",")).join(" ")}" fill="${fill}" opacity="${opacity}"/>`;};
     const arrow=(a,b,c,w=2.3,tag)=>{
       const start=proj(a),end=proj(b);
+      const delta=sub(b,a), normal=dot(delta,toward);
       if(length(sub(end,start))<2){
-        if(w<1.8||length(sub(b,a))<1e-8)return;
-        const [x,y]=start;
-        out+=`<circle cx="${x}" cy="${y}" r="6" fill="${C.white}" stroke="${c}" stroke-width="1.8"/>`;
-        out+=dotProductGlyph(x,y,c,dot(sub(b,a),toward)>0);
-      }else out+=arrow2(start,end,c,w);
+        if(w<1.8||length(delta)<1e-8)return;
+        normalGlyph(...start,c,normal>0);
+      }else{
+        out+=arrow2(start,end,c,w);
+        if(plane&&tag&&w>=1.8&&Math.abs(normal)>length(delta)*.04)normalGlyph(start[0]-9,start[1]+9,c,normal>0);
+      }
       if(tag)tags.push([end,tag,c]);
     };
-    function dotProductGlyph(x,y,c,front){
-      return front?`<circle cx="${x}" cy="${y}" r="2" fill="${c}"/>`:
+    function normalGlyph(x,y,c,front){
+      out+=`<circle cx="${x}" cy="${y}" r="6" fill="${C.white}" stroke="${c}" stroke-width="1.8" data-normal="${front?"out":"in"}"/>`;
+      out+=front?`<circle cx="${x}" cy="${y}" r="2" fill="${c}"/>`:
         path([[x-2.7,y-2.7],[x+2.7,y+2.7]],c,1.4)+path([[x+2.7,y-2.7],[x-2.7,y+2.7]],c,1.4);
     }
     const dot=(v,c,tag,r=4)=>{const [x,y]=proj(v);out+=`<circle cx="${x}" cy="${y}" r="${r}" fill="${c}" stroke="${C.white}" stroke-width="1.3"/>`;if(tag)tags.push([[x,y],tag,c]);};
+    const disk=(v,r,color,opacity=1)=>{const [x,y]=proj(v);out+=`<circle cx="${x}" cy="${y}" r="${r*scale}" fill="${color}" opacity="${opacity}"/>`;};
     const g=extent*.85;
-    for(let i=-4;i<=4;i++){const a=g*i/4;draw([[-g,a,0],[g,a,0]],C.grid,1);draw([[a,-g,0],[a,g,0]],C.grid,1);}
-    arrow(zero,[g,0,0],C.muted,1.1,"x"); arrow(zero,[0,g,0],C.muted,1.1,"y"); arrow(zero,[0,0,g],C.muted,1.1,"z");
-    return {draw,polygon,arrow,dot,finish(){
+    const axes=plane?.axes||[0,1];
+    if(grid){
+      for(let i=-4;i<=4;i++){
+        const a=g*i/4;
+        draw([planePoint(axes,-g,a),planePoint(axes,g,a)],C.grid,1);
+        draw([planePoint(axes,a,-g),planePoint(axes,a,g)],C.grid,1);
+      }
+      const activeAxes=plane?axes:[0,1,2];
+      activeAxes.forEach(axis=>arrow(zero,zero.map((_,i)=>i===axis?g:0),C.muted,1.1,"xyz"[axis]));
+    }
+    return {draw,polygon,arrow,dot,disk,finish(){
       // Keep vector tags readable and inside the viewport; place overlapping labels on nearby rows.
       const used=[];
       const labels=tags.map(([[x,y],text,color])=>{
@@ -52,7 +77,8 @@
         used.push([px,py,px+w]);
         return `<rect x="${px}" y="${py-12}" width="${w}" height="18" rx="4" fill="${C.white}" opacity=".94"/><text x="${px+5}" y="${py+1}" font-size="16" fill="${color}">${txt(text)}</text>`;
       }).join("");
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${txt(label)}">${out}${labels}</svg>`;
+      const view=plane?camera.plane.toUpperCase()+" 平面投影":"3D 空間";
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" data-projection="${camera.plane||"3d"}" role="img" aria-label="${txt(view+"・"+label)}">${out}${labels}</svg>`;
     }};
   }
   function chart(xmax,series,at,xlabel="時間 t（s）",xmin=0){
@@ -89,6 +115,8 @@
       task:"將 Δℓ 設為 +x，先令 P 在 x 軸上，再移到 y 軸和 z 軸，觀察三維叉積。固定角度，把 r 加倍，比較 ΔB。"},
     {id:"straight",title:"有限／近似長直導線",controls:[I,ctl("half","導線半長",5,35,1,24,"cm"),probe,...xyz(0,8,6)],
       task:"在導線中垂面固定 P，增加線段長度，看看合磁場如何接近長直導線的 μ₀I/(2πr)。"},
+    {id:"compass",title:"通電導線與指南針",controls:[I,ctl("distance","指南針到導線的距離",3,24,1,8,"cm"),ctl("earth","水平地磁分量",0,60,5,25,"μT")],
+      task:"在 XY 平面讀指南針的偏轉角。反轉電流，觀察導線磁場的方向與合磁場如何改變。"},
     {id:"pair",title:"雙平行導線",controls:[I,ctl("spacing","導線間距",4,22,1,14,"cm"),pick("relative","兩線電流方向",[[1,"同向"],[-1,"反向"]],-1),probe,...xyz(0,0,0)],
       task:"在兩線的正中間切換同向與反向。哪些分量相消？再讓 P 離開兩線所在平面。"},
     {id:"loop",title:"圓線圈",controls:[I,radius,probe,...xyz(0,0,10)],
@@ -96,11 +124,27 @@
     {id:"solenoid",title:"有限長螺線管",controls:[I,radius,ctl("coil","繞組長度",8,42,1,26,"cm"),ctl("turns","線圈匝數",3,30,1,16,"匝"),probe,...xyz(0,0,0)],
       task:"在管中心、端口和管外量測。用長螺線管近似比較，找出它在哪些位置會偏離有限線圈的結果。"}
   ];
+  function drawCompass(p,camera){
+    const s=scene(camera,29,"長直導線、地磁與指南針偏轉");
+    const point=[p.distance,0,0], wire=[0,20*p.i/p.distance,0], earth=[p.earth,0,0], total=sum(wire,earth);
+    s.draw([[0,0,-20],[0,0,20]],C.muted,2.6);
+    if(p.i)pointArrow(s,[0,0,-7],[0,0,p.i],14,C.amber,"I");
+    s.draw(ring(Math.min(p.distance+2,24)),C.grid,1.4,"5 3");
+    s.dot(point,C.ink,"P",4);
+    pointArrow(s,point,earth,9,C.blue,"地磁");
+    pointArrow(s,point,wire,9,C.violet,"導線磁場");
+    pointArrow(s,point,total,13,C.teal,"N",2.9);
+    return sceneOut(s,[item("wire","導線的磁場",fmt(wire[1],2)+" μT（沿 y）"),item("total","合磁場量值",mag(total,"μT")),
+      item("angle","指南針偏轉角（從 +x 量起）",length(total)?fmt(Math.atan2(total[1],total[0])*180/Math.PI,1)+"°":"合磁場為零")],
+      [[C.amber,"導線電流 I"],[C.blue,"地磁"],[C.violet,"導線磁場"],[C.teal,"指南針北端指向"]],
+      "導線磁場採長直導線近似，地磁僅取水平分量。兩磁場相加後決定指南針的水平指向。");
+  }
   const biot={
     id:"biot",title:"必歐－沙伐定律：三維磁場工作臺",sections:["2-1","2-2"],modes:biotModes,
     description:"轉動空間視角，移動觀測點 P，逐段追蹤電流元、位置向量、分磁場與合磁場。",
     camera:{yaw:34,pitch:29,zoom:1},
     draw(mode,p,camera){
+      if(mode==="compass")return drawCompass(p,camera);
       const m=P.biot(mode,p), e=m.selected, s=scene(camera,mode==="straight"?Math.max(31,p.half):32,"三維電流分布與觀測點 P 的磁場向量");
       s.polygon([e.m,sum(e.m,e.dl),sum(m.point,e.dl),m.point],C.blue,.08);
       m.paths.forEach(({nodes,sign})=>{
@@ -110,7 +154,9 @@
         if(p.i)pointArrow(s,a,dir,3.9,C.amber,"I",2.5);
       });
       s.dot(m.point,C.ink,"P",5); s.arrow(e.m,m.point,C.blue,1.9,"r");
-      if(e.angle>1&&e.angle<179){
+      const plane=planes[camera.plane];
+      const trueAngle=!plane||(Math.abs(dot(e.dl,plane.normal))<1e-8&&Math.abs(dot(e.rv,plane.normal))<1e-8);
+      if(trueAngle&&e.angle>1&&e.angle<179){
         const a=unit(e.dl), b=unit(sub(unit(e.rv),mul(a,dot(a,unit(e.rv))))), arc=Math.min(4.8,e.d*.25), angle=rad(e.angle);
         const offset=u=>sum(e.m,sum(mul(a,arc*Math.cos(u*angle)),mul(b,arc*Math.sin(u*angle))));
         s.draw(sample(28,offset),C.muted,1.35,"3 2");s.dot(offset(.55),C.muted,"θ",2);
@@ -135,29 +181,96 @@
         "箭長示意，分量用全域 x、y、z 座標。有限線段與螺線管以電流元疊加；省略外部回路，螺線管以同軸圓圈近似。");
     }
   };
+  const chargeControls=[ctl("q","左側電荷 Q₁",-12,12,1,6,"nC"),ctl("q2","右側電荷 Q₂",-12,12,1,-6,"nC"),
+    ctl("spacing","電荷間距",6,28,1,18,"cm"),...xyz(0,8,2)];
+  function electricLines(p,camera){
+    const point=[p.x,p.y,p.z], at=P.electro("charges",p,point);
+    const s=scene(camera,32,"電力線、電場與檢驗電荷受力");
+    const sources=[[-p.spacing/2,p.q],[p.spacing/2,p.q2]].filter(([,q])=>q);
+    const fieldAt=position=>P.electro("charges",p,position)?.e||zero;
+    if(camera.plane==="yz"){
+      for(let y=-21;y<=21;y+=7)for(let z=-21;z<=21;z+=7){
+        const origin=[0,y,z], field=fieldAt(origin);
+        pointArrow(s,origin,field,3.5,C.teal);
+      }
+    }else{
+      // Axial symmetry keeps each traced line in a meridional plane containing both charges.
+      const angles=camera.plane==="xy"?[0]:camera.plane==="xz"?[Math.PI/2]:[0,Math.PI/3,2*Math.PI/3];
+      for(const [x,q] of sources)for(const azimuth of angles){
+        for(let i=0;i<10;i++){
+          const theta=TAU*(i+.21)/10;
+          const seed=[Math.cos(theta),Math.sin(theta)*Math.cos(azimuth),Math.sin(theta)*Math.sin(azimuth)];
+          let current=sum([x,0,0],mul(seed,.9));
+          const points=[current], sign=Math.sign(q);
+          let joinedPositive=false;
+          for(let k=0;k<175;k++){
+            const tangent=mul(unit(fieldAt(current)),sign);
+            if(length(tangent)<.5)break;
+            const middle=sum(current,mul(tangent,.21));
+            const next=sum(current,mul(unit(fieldAt(middle)),.42*sign));
+            if(length(next)>34||length(sub(next,current))<.05)break;
+            current=next;
+            points.push(current);
+            const target=sources.find(([other])=>other!==x&&length(sub(current,[other,0,0]))<.75);
+            if(target){joinedPositive=target[1]>0;break;}
+          }
+          if(sign<0&&joinedPositive)continue;
+          s.draw(points,C.teal,1.3);
+          if(points.length>8){
+            const i=Math.min(30,Math.floor(points.length*.64));
+            const a=points[i-3],b=points[i];
+            s.arrow(sign>0?a:b,sign>0?b:a,C.teal,1.4);
+          }
+        }
+      }
+    }
+    sources.forEach(([x,q])=>s.dot([x,0,0],q>0?C.red:C.blue,x<0?"Q₁":"Q₂",7));
+    s.dot(point,C.ink,"P",5);
+    const force=at?mul(at.e,p.test):null; // nC × N/C gives nN.
+    if(at){
+      pointArrow(s,point,at.e,10,C.blue,"E");
+      pointArrow(s,point,force,15,C.violet,"F");
+    }
+    const rows=[item("field","P 點電場 |E|",at?mag(at.e,"N/C",1):"—"),
+      item("vector","電場 E（x, y, z）",at?vec(at.e,1)+" N/C":"—"),
+      item("force","靜電力 F（x, y, z）",force?vec(force,1)+" nN":"—")];
+    return sceneOut(s,rows,[[C.teal,camera.plane==="yz"?"x = 0 切片的局部電場":"電力線"],[C.blue,"P 的電場 E"],[C.violet,"檢驗電荷受力 F"]],
+      (camera.plane==="yz"?"YZ 顯示 x = 0 切片的局部電場向量。":
+        camera.plane?"電力線畫在包含兩場源的中央平面，P 可在平面外。":"電力線畫在通過兩場源的三個平面上。")+
+      "線數與箭長為示意。讀值以 P 的實際三維座標計算。");
+  }
   const electro={
-    id:"potential-map",title:"電位與等電位：三維測量工作臺",sections:["1-2","1-3"],
+    id:"potential-map",title:"靜電力、電力線與電位",sections:["1-1","1-2","1-3"],
     description:"同時量電位 V 與電場 E；沿切片讀等電位線，記錄起點 A，再用檢驗電荷比較電力作功。",
     camera:{yaw:22,pitch:52,zoom:1},
     modes:[
-      {id:"charges",title:"單／雙點電荷",controls:[ctl("q","左側電荷 Q₁",-12,12,1,6,"nC"),ctl("q2","右側電荷 Q₂",-12,12,1,-6,"nC"),ctl("spacing","電荷間距",6,28,1,18,"cm"),...xyz(0,8,2)],
+      {id:"charges",title:"點電荷等電位線",controls:chargeControls,
         task:"等量異號時，將 P 放到 x = 0 的平面。比較 V = 0 與 E 是否也為零，再把右側電荷改為同號。"},
+      {id:"field-lines",title:"電力線與庫侖力",controls:chargeControls,
+        task:"先將右側電荷設為 0，再加上同號或異號場源。只反轉檢驗電荷的符號，觀察電場與受力的差別。"},
       {id:"plates",title:"平行導體板",controls:[ctl("voltage","板間電位差",2,30,1,14,"V"),ctl("gap","板間距",6,28,1,18,"cm"),...xyz(0,5,4)],
         task:"先只改 y、z，再改 x。哪些移動讓電位改變？固定電位差再改板間距，觀察 V(x) 的斜率。"},
       {id:"sphere",title:"帶電導體球",controls:[ctl("q","導體球總電量 Q",-12,12,1,6,"nC"),ctl("radius","球半徑",4,15,.5,10,"cm"),...xyz(6,1,0)],
         task:"從球內移到球外，找出 V 不變、E = 0 的範圍。注意 V 在球面連續，E 則有內外之分。"}
     ].map(m=>({...m,controls:[...m.controls,pick("test","檢驗電荷 q",[[1,"+1 nC"],[-1,"−1 nC"],[2,"+2 nC"],[-2,"−2 nC"]],1)]})),
     draw(mode,p,camera,state){
+      if(mode==="field-lines")return electricLines(p,camera);
       const point=[p.x,p.y,p.z], at=P.electro(mode,p,point), atA=state.a?P.electro(mode,p,state.a):null;
       const s=scene(camera,32,"等電位切片、場源與觀測點 P 的電場向量");
-      const bounds=27, z=point[2], count=25, inc=2*bounds/count;
-      const vGrid=sample(count,v=>sample(count,u=>P.electro(mode,p,[-bounds+2*bounds*u,-bounds+2*bounds*v,z])?.v));
+      const axes=(planes[camera.plane]||planes.xy).axes;
+      const fixed=[0,1,2].find(i=>!axes.includes(i)), slice="xyz"[fixed]+" = "+fmt(point[fixed])+" cm";
+      const bounds=27, count=25, inc=2*bounds/count;
+      const slicePoint=(a,b)=>planePoint(axes,a,b,point);
+      const vGrid=sample(count,v=>sample(count,u=>P.electro(mode,p,slicePoint(-bounds+2*bounds*u,-bounds+2*bounds*v))?.v));
+      const sliceValues=vGrid.flat().filter(Number.isFinite);
+      const flat=sliceValues.length>0&&Math.max(...sliceValues)-Math.min(...sliceValues)<1e-8;
+      if(flat)s.polygon([slicePoint(-bounds,-bounds),slicePoint(bounds,-bounds),slicePoint(bounds,bounds),slicePoint(-bounds,bounds)],C.violet,.12);
       const spacing=mode==="plates"?p.voltage/5:mode==="sphere"?Math.max(100,Math.abs(9000*p.q/p.radius)/5):
         Math.max(100,Math.round(Math.max(Math.abs(p.q),Math.abs(p.q2))*1.7)*100);
       const levels=mode==="plates"?[1,2,3,4].map(i=>i*spacing):[-4,-3,-2,-1,0,1,2,3,4].map(i=>i*spacing);
       for(const level of levels)for(let j=0;j<count;j++)for(let i=0;i<count;i++){
         const a=-bounds+i*inc,b=-bounds+j*inc;
-        const pts=[[a,b,z],[a+inc,b,z],[a+inc,b+inc,z],[a,b+inc,z]];
+        const pts=[slicePoint(a,b),slicePoint(a+inc,b),slicePoint(a+inc,b+inc),slicePoint(a,b+inc)];
         const vals=[vGrid[j][i],vGrid[j][i+1],vGrid[j+1][i+1],vGrid[j+1][i]];
         if(vals.some(v=>v===undefined))continue;
         const cuts=[];
@@ -185,11 +298,13 @@
       const rows=[item("potential","P 點電位 V",at?fmt(at.v,2)+" V":"—"),item("field","P 點電場 |E|",at?mag(at.e,"N/C",2):"—"),
         item("vector","P 點電場 E（x, y, z）",at?vec(at.e,1)+" N/C":"—"),item("energy","P 點電位能 qV",at?fmt(p.test*at.v,2)+" nJ":"—"),
         item("work","由 A 至 P，靜電力作功",at&&atA?fmt(p.test*(atA.v-at.v),2)+" nJ":state.a?"—":"請先記錄 A"),
-        item("levels","等電位線級距",fmt(spacing)+" V")];
+        item("levels","等電位線級距",fmt(spacing)+" V"),item("slice","等電位切片",slice)];
       const vals=sample(160,u=>{const pos=[-28+56*u,p.y,p.z], v=P.electro(mode,p,pos)?.v;return [pos[0],v===undefined?null:clamp(v,-35000,35000)];});
       const graph=chart(28,[{name:"沿 x 的電位",unit:"V",values:vals,color:C.teal}],p.x,"x（cm）",-28);
       return sceneOut(s,rows,[[C.amber,"正電位線"],[C.blue,"負電位線"],[C.violet,"0 V 線／記錄點 A"],[C.teal,"電場 E"]],
-        (at?"":"P 太靠近理想點電荷，讀值不顯示。")+(mode==="plates"?"忽略邊緣效應，以負板為 0 V；板外取理想常電位。":"以無窮遠為 0 V；曲線是通過 P 的 z 切片，箭頭顯示完整三維 E。")+" V(x) 圖取固定 y、z；點電荷附近超過 ±35,000 V 的值截到圖框。",graph);
+        (at?"":"P 太靠近理想點電荷，讀值不顯示。")+(mode==="plates"?"忽略邊緣效應，以負板為 0 V。":"以無窮遠為 0 V。")+
+        "等電位線取通過 P 的切片（"+slice+"）。"+(flat?"淡紫區整片同為 "+fmt(sliceValues[0])+" V。":"")+
+        "V(x) 圖取固定 y、z，超過 ±35,000 V 的值截到圖框。",graph);
     }
   };
   const phase=ctl("phase","時間進度",0,100,1,30,"%");
@@ -273,9 +388,28 @@
   const turns=ctl("turns","線圈匝數 N",1,50,1,12,"匝");
   const field=ctl("b","磁場量值 B",.05,1,.05,.4,"T");
   const circuit=[pick("closed","迴路狀態",[[1,"閉合"],[0,"開路"]],1),ctl("resistance","電阻 R",1,20,.5,4,"Ω"),phase];
+  function drawTransformer(p,camera){
+    const m=P.transformer(p), u=p.phase/100, at=m.at(u), s=scene(camera,26,"鐵芯、原副線圈與磁通量方向");
+    const frame=[[-14,0,-13],[14,0,-13],[14,0,13],[-14,0,13],[-14,0,-13]];
+    for(const y of [-2,2])s.draw(frame.map(([x,,z])=>[x,y,z]),"#8ba0a8",8);
+    for(const [x,turns,color] of [[-14,p.primary,C.amber],[14,p.secondary,C.blue]]){
+      const coils=Math.max(2,Math.round(turns/45));
+      const winding=sample(160,t=>[x+4.2*Math.cos(TAU*t*coils),4.2*Math.sin(TAU*t*coils),-8+16*t]);
+      s.draw(winding,color,2);
+      s.dot([x,0,17],color,x<0?"原線圈":"副線圈");
+    }
+    pointArrow(s,[-8,0,13],[at.flux,0,0],15,C.teal,"Φ",2.8);
+    const series=sample(180,u=>[u,m.at(u)]);
+    const graph=chart(1,[{name:"鐵芯單匝磁通量",unit:"mWb",values:series.map(([u,m])=>[u,m.flux*1000]),color:C.teal},
+      {name:"副線圈瞬時電壓",unit:"V",values:series.map(([u,m])=>[u,m.secondary]),color:C.blue}],u,"週期進度（0 到 1）");
+    return sceneOut(s,[item("voltage","副線圈電壓有效值",fmt(m.secondary,2)+" V"),item("current","負載電流有效值",fmt(m.current,3)+" A"),
+      item("flux","鐵芯單匝磁通量 Φ",fmt(at.flux*1000,3)+" mWb"),item("power","負載功率",fmt(m.power,2)+" W")],
+      [[C.amber,"原線圈"],[C.blue,"副線圈"],[C.teal,"鐵芯磁通方向"]],
+      "理想變壓器模型。兩組線圈共享每匝磁通量，電壓有效值比等於匝數比。副線圈開路仍有電壓，負載電流為零。圖中繞線數縮減示意。",graph);
+  }
   const induction={
-    id:"induction",title:"電磁感應：磁通量、電動勢與能量",sections:["3-1","3-2","3-3"],
-    description:"切換滑棒、進出磁場、磁棒、旋轉線圈與改變磁場，在同一時間軸上比對 Φ、ε 與 I。",
+    id:"induction",title:"電磁感應與變壓器",sections:["3-1","3-2","3-3","3-4"],
+    description:"切換滑棒、進出磁場、磁棒、旋轉線圈、變動磁場與變壓器，比對 Φ、ε 與 I。",
     camera:{yaw:21,pitch:53,zoom:1},
     modes:[
       {id:"slide",title:"滑動導體棒",controls:[field,loopSize,ctl("speed","棒速 v",.02,.18,.01,.12,"m/s"),duration,...circuit],
@@ -287,9 +421,14 @@
       {id:"rotate",title:"旋轉線圈／發電機",controls:[field,loopSize,duration,turns,ctl("cycles","觀察時間內旋轉圈數",1,4,1,1,"圈"),...circuit],
         task:"把線圈法線轉到與 B 平行、垂直，找出 Φ 與 ε 的峰值為何不同步。"},
       {id:"vary",title:"固定線圈／改變 B",controls:[{...field,label:"起始磁場"},ctl("end","末端磁場（負值表示反向）",-1,1,.05,.85,"T"),loopSize,duration,turns,...circuit],
-        task:"線圈不動、面積不變，讓 B 增加、減少或反向。比較前後兩段 B 固定時的讀值。"}
+        task:"線圈不動、面積不變，讓 B 增加、減少或反向。比較前後兩段 B 固定時的讀值。"},
+      {id:"transformer",title:"變壓器",controls:[ctl("voltage","原線圈電壓有效值",10,120,5,60,"V"),ctl("primary","原線圈匝數",50,300,10,150,"匝"),
+        ctl("secondary","副線圈匝數",50,300,10,300,"匝"),ctl("frequency","交流頻率",20,100,5,60,"Hz"),
+        ctl("load","負載電阻",20,500,10,100,"Ω"),pick("closed","副線圈",[[1,"接上負載"],[0,"開路"]],1),phase],
+        task:"比較匝數比與電壓比。把副線圈打開，觀察磁通量、輸出電壓和負載電流各自如何變。"}
     ].map(m=>({...m,animate:true})),
     draw(mode,p,camera){
+      if(mode==="transformer")return drawTransformer(p,camera);
       const t=p.duration*p.phase/100,m=P.induction(mode,p,t);
       const half=p.size/2, extent=mode==="slide"?Math.max(28,(p.speed*p.duration+.035)*100*.65+7):29;
       const s=scene(camera,extent,"感應裝置、外加磁場與迴路的三維圖");
@@ -353,5 +492,129 @@
         (mode==="magnet"?"磁棒用軸向理想磁偶極近似，中央場值設定為穿過線圈的平均值。":mode==="enter"?"場區邊界採理想突變，臨界點讀值取右側極限。":""),graph);
     }
   };
-  EM.workbenches=[biot,electro,force,induction];
+  const protonEnergy=ctl("initial","質子初始動能",20,400,20,80,"eV");
+  const gapVoltage=ctl("voltage","每次跨間隙的加速電壓",50,1200,50,400,"V");
+  const particleApps={
+    id:"particle-apps",title:"粒子加速器與極光",sections:["2-4"],camera:{yaw:18,pitch:38,zoom:1},
+    description:"比較電場如何改變質子動能、磁場如何彎折軌跡，以及粒子沿地磁場進入高層大氣的條件。",
+    modes:[
+      {id:"linear",title:"多級直線加速器",controls:[protonEnergy,gapVoltage,{...phase,label:"沿直線的位置進度"}],animate:true,
+        task:"拖動進度穿過四個加速間隙，對照動能圖。找出質子在間隙與金屬漂移管內的差異。"},
+      {id:"cyclotron",title:"迴旋加速器",controls:[protonEnergy,gapVoltage,ctl("b","磁場 B（沿 +z）",.3,1.2,.05,.65,"T"),ctl("crossings","穿越間隙次數",3,12,1,8,"次"),phase],animate:true,
+        task:"在 XY 平面看 D 形電極內的半圓，再轉到 3D 確認 B 垂直軌道。提高電壓時比較半徑與迴旋週期。"},
+      {id:"aurora",title:"極光與磁鏡",controls:[ctl("shell","磁力線赤道半徑 L",1.5,3.5,.1,2.5,"Rₑ"),ctl("pitch","赤道速度與磁場夾角（銳角）",0,85,1,12,"°"),
+        ctl("longitude","磁經度",0,360,5,0,"°"),pick("hemisphere","粒子先朝向",[[1,"北半球"],[-1,"南半球"]],1),
+        ctl("phase","沿路徑播放進度",0,100,1,65,"%")],animate:true,
+        task:"比較小、大入射夾角。切到 XZ 看極區附近，再旋轉 3D 觀察粒子沿哪條磁力線接近高層大氣。"}
+    ],
+    draw(mode,p,camera){
+      if(mode==="linear"){
+        const position=-26+52*p.phase/100, m=P.linearAcceleration(p,position), s=scene(camera,29,"質子沿直線穿越四個加速間隙");
+        const crossSection=ring(3.2,0,34);
+        const sections=[-26,...m.gaps,26];
+        for(let i=0;i<sections.length-1;i++){
+          const a=sections[i]+(i?m.halfWidth:0), b=sections[i+1]-(i<4?m.halfWidth:0);
+          for(const x of [a,b])s.draw(crossSection.map(([u,v])=>[x,u,v]),C.blue,1.45);
+          for(const [u,v] of [[-3.2,0],[3.2,0],[0,3.2],[0,-3.2]])s.draw([[a,u,v],[b,u,v]],C.blue,1.3);
+        }
+        m.gaps.forEach(x=>pointArrow(s,[x-1,-6,0],[1,0,0],2.5,C.amber,"E",2.15));
+        s.draw([[-27,0,0],[27,0,0]],C.teal,1.7,"5 4");
+        s.dot([position,0,0],C.violet,"p⁺",5);
+        const values=sample(260,u=>{const x=-26+52*u;return [x,P.linearAcceleration(p,x).energy];});
+        const graph=chart(26,[{name:"質子動能 K",unit:"eV",values,color:C.teal,absolute:true}],position,"x（cm）",-26);
+        return sceneOut(s,[item("position","質子位置",fmt(position,1)+" cm"),item("energy","質子動能 K",fmt(m.energy,1)+" eV"),
+          item("speed","質子速率",fmt(m.speed/1000,2)+" km/s"),item("region","所在區域",m.active?"加速間隙：電場作正功":"漂移區：動能固定")],
+          [[C.blue,"漂移管"],[C.amber,"間隙電場"],[C.violet,"質子"]],"理想化同步加速。每個間隙都在質子通過時提供加速電壓，漂移管內電場取零。進度按位置播放。",graph);
+      }
+      if(mode==="cyclotron"){
+        const m=P.cyclotron(p), turn=p.phase/100*p.crossings;
+        const k=Math.min(p.crossings-1,Math.floor(turn)), arc=m.arcs[k], point=arc.point(turn-k);
+        const tracks=m.arcs.map(a=>sample(48,a.point));
+        const outer=Math.max(...tracks.flat().map(length))*1.13;
+        const s=scene(camera,Math.max(outer*1.15,1),"D 形電極、磁場與質子的分段半圓");
+        for(const sign of [-1,1]){
+          const border=sample(70,u=>[sign*outer*Math.sin(Math.PI*u),outer*Math.cos(Math.PI*u),0]);
+          s.polygon(border,sign>0?C.blue:C.teal,.13);
+          s.draw([...border,border[0]],C.blue,1.4);
+          s.dot([sign*.8*outer,0,0],C.blue,sign>0?"D₁":"D₂",3.8);
+        }
+        s.draw([[0,-outer,0],[0,outer,0]],C.amber,2,"5 3");
+        tracks.forEach((points,i)=>s.draw(points,i===k?C.violet:C.teal,i===k?2.7:1.45,i>k?"4 3":""));
+        s.dot(point,C.violet,"p⁺",5);
+        pointArrow(s,[-outer*.76,-outer*.65,0],[0,0,1],outer*.48,C.blue,"B");
+        const steps=m.arcs.flatMap((a,i)=>[[i,a.energy],[i+1,a.energy]]);
+        const graph=chart(p.crossings,[{name:"質子動能 K",unit:"eV",values:steps,color:C.teal,absolute:true}],turn,"經過的半圈數");
+        return sceneOut(s,[item("crossing","已進入第幾段半圓",String(k+1)),item("energy","質子動能 K",fmt(arc.energy,1)+" eV"),
+          item("radius","此段軌道半徑",fmt(arc.radius,2)+" cm"),item("period","完整一圈週期",fmt(m.period*1e9,2)+" ns")],
+          [[C.blue,"D 形電極／磁場"],[C.amber,"加速間隙"],[C.violet,"目前半圓／質子"]],
+          "在極薄的間隙跨一次便增加 eΔV。電極內用均勻磁場算半圓，忽略間隙通過時間及相對論效應。圖面隨軌道縮放。",graph);
+      }
+      const m=P.aurora(p), u=p.phase/100, returning=!m.reachesAtmosphere&&u>.5;
+      const fraction=m.reachesAtmosphere?u:1-Math.abs(2*u-1), latitude=p.hemisphere*m.end*fraction;
+      const s=scene(camera,p.shell*1.07,"地球、偶極磁力線和電子沿場運動",false);
+      const longitude=rad(p.longitude);
+      for(const phi of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
+        for(const L of [1.5,2.2,3.0].filter(x=>x<=p.shell+.65)){
+          const limit=Math.acos(Math.sqrt(m.atmosphere/L));
+          s.draw(sample(80,u=>m.point((2*u-1)*limit,L,phi)),C.grid,1.2);
+        }
+      }
+      s.disk(zero,m.atmosphere,"#65bad0",.72);
+      s.disk(zero,1,"#cce5ef");
+      s.draw(ring(1.004),C.blue,1,"4 3");
+      s.dot([0,0,1],C.blue,"N",3);s.dot([0,0,-1],C.blue,"S",3);
+      s.draw(sample(125,u=>m.point((2*u-1)*m.limit)),C.blue,1.4,"5 4");
+      const pathPoint=t=>{
+        const lambda=p.hemisphere*m.end*t, guide=m.point(lambda);
+        const localB=m.ratio(lambda), width=.28*Math.sin(rad(p.pitch))/Math.sqrt(localB)*Math.sin(Math.PI*t)**.5;
+        const tangent=unit(sub(m.point(lambda+.0001),m.point(lambda-.0001)));
+        const normal=[-Math.sin(longitude),Math.cos(longitude),0];
+        const side=cross(tangent,normal), angle=TAU*8*t;
+        return sum(guide,sum(mul(normal,width*Math.cos(angle)),mul(side,width*Math.sin(angle))));
+      };
+      s.draw(sample(185,pathPoint),C.teal,2.45);
+      const endpoint=m.point(p.hemisphere*m.end);
+      if(m.reachesAtmosphere){
+        s.disk(endpoint,.085,"#73d995",.52);
+        s.dot(endpoint,C.teal,"高層大氣",4.2);
+      }else s.dot(endpoint,C.red,"磁鏡點",4.2);
+      s.dot(pathPoint(fraction),C.violet,"e⁻",5.1);
+      const localPitch=Math.asin(Math.min(1,Math.sin(rad(p.pitch))*Math.sqrt(m.ratio(latitude))));
+      const altitude=(length(m.point(latitude))-1)*m.earthKm;
+      return sceneOut(s,[item("fate","此粒子的結果",m.reachesAtmosphere?"可進入高層大氣":returning?"已在磁鏡點折返":"會在磁鏡點折返"),
+        item("altitude","導引中心高度",fmt(altitude,0)+" km"),item("cone","赤道損失錐半角",fmt(m.lossCone*180/Math.PI,1)+"°"),
+        item("pitch","當地速度與磁場夾角（銳角）",fmt(localPitch*180/Math.PI,1)+"°")],
+        [[C.blue,"地球／選取磁力線"],[C.teal,"電子路徑示意"],[C.violet,"電子"]],
+        "理想偶極地磁場，依磁鏡近似估計是否抵達 110 km 高度。電子與高層大氣碰撞可使氣體發光。圖中迴旋半徑放大，播放進度沿路徑計。");
+    }
+  };
+  const wave={
+    id:"em-wave",title:"真空中的電磁波",sections:["3-5"],camera:{yaw:23,pitch:25,zoom:1},
+    description:"分別在兩個側視圖看電場和磁場，再轉到 3D 比較傳播方向。",
+    modes:[{id:"plane-wave",title:"平面電磁波",controls:[ctl("frequency","頻率",100,1000,25,300,"MHz"),ctl("amplitude","電場峰值",20,200,5,100,"V/m"),
+      ctl("angle","電場偏振角（從 +y 轉向 +z）",0,180,5,0,"°"),ctl("x","觀察點 P", -100,100,5,0,"cm"),phase],animate:true,
+      task:"將偏振角設為 0°，切換 XY 和 XZ，觀察哪一個場在平面內振動。提高頻率比較波長，並讀取波速。"}],
+    draw(mode,p,camera){
+      const m=P.emWave(p), s=scene(camera,123,"沿 +x 傳播的電場與磁場"), point=[p.x,0,0];
+      if(camera.plane!=="yz"){
+        for(const [v,color] of [[m.electric,C.teal],[m.magnetic,C.blue]]){
+          s.draw(sample(240,u=>{const x=220*u-110;return sum([x,0,0],mul(v,33*m.at(x)));}),color,2.2);
+        }
+      }
+      s.dot(point,C.ink,"P",5);
+      const phaseAtP=m.at(p.x);
+      if(Math.abs(phaseAtP)>1e-7){
+        s.arrow(point,sum(point,mul(m.electric,33*phaseAtP)),C.teal,2.6,"E");
+        s.arrow(point,sum(point,mul(m.magnetic,33*phaseAtP)),C.blue,2.6,"B");
+      }
+      pointArrow(s,[-98,-25,-20],[1,0,0],31,C.amber,"傳播",2.3);
+      return sceneOut(s,[item("lambda","真空波長 λ",fmt(m.wavelength,2)+" cm"),item("speed","傳播速率","2.998 × 10⁸ m/s"),
+        item("e","P 處電場量值",fmt(Math.abs(phaseAtP)*p.amplitude,2)+" V/m"),
+        item("b","P 處磁場量值",fmt(Math.abs(phaseAtP)*p.amplitude/m.c*1e9,2)+" nT")],
+        [[C.teal,"電場 E"],[C.blue,"磁場 B"],[C.amber,"傳播方向"]],
+        (camera.plane==="yz"?"YZ 沿傳播軸觀察，顯示 P 處的瞬時場。":"曲線表示同一時刻沿傳播軸各處的場。")+
+        "兩條曲線各自用峰值縮放，實際大小見讀值。進度按一個週期播放。");
+    }
+  };
+  EM.workbenches=[biot,electro,force,induction,particleApps,wave];
 })();

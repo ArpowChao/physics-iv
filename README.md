@@ -7,18 +7,22 @@
 - **課程導讀**：12 節的目標、課本小標題、公式條件、例題與自我檢核。章末另有等電位線、電流天平、認識電磁波的探究導讀。
 - **逐概念練習**：30 個概念，每個各有兩題、共 60 題。可在該節概念下展開作答，也可從「觀念練習」按章節挑選。點選後立即看解析，答對紀錄只存在目前瀏覽器。
 - **電磁實驗室**：12 個 SVG 互動模擬；可調變因、即時讀值與重置。帶電質點、發電機與電磁波可播放、暫停或直接拖動進度。
-- **三維工作臺**：4 組、17 種情境。可拖曳轉向、切換俯視／側視、用鍵盤方向鍵旋轉。課程導讀和原有實驗都連到對應工作臺。
+- **2D／3D 工作臺**：6 組、24 種情境。2D 可切換 XY、XZ、YZ；3D 可用拖曳或方向鍵轉向。切換時使用同一組參數、播放進度與測量結果。12 節課程均有對應入口。
 - **逐章練習卷**：每卷 12 題、100 分（單選 40、多選 20、三題題組 24、手寫 16）。多選每題恰有 2 或 3 個正確選項，整題全對才給分。手寫含繪圖、填充或計算，依所附規準自評。
 - **教師用資料**：逐題有課本小標題、課綱對照、Bloom 層次與適用的第五學習階段探究能力；空白卷和解答可分開列印。段考範本、上次試題分析及額外繪圖規格未提供，本站採自訂題卷格式與程式繪製的向量圖。
 
 來源為全華課本第 1–3 章、[108 自然科學領域課綱](https://stv.naer.edu.tw/data/course_outline/pta_18538_240851_60502.pdf)（加深加廣選修，印刷頁 42–43、47–48、195–196）與 Krathwohl 的修訂版 Bloom 分類等附件。教材、題目與圖為重新編寫；原始附件不隨網站發布。實驗是高中課程模型，各頁標示模型的適用條件或示意比例。
 
-| 三維工作臺 | 可比較的情境 |
+| 2D／3D 工作臺 | 可比較的情境 |
 | --- | --- |
-| [必歐－沙伐定律](https://arpowchao.github.io/physics-iv/#labs/biot) | 單一電流元、有限直線、雙平行導線、圓線圈、有限螺線管。移動 P、逐段看 ΔB，讀取 B 的三個分量。 |
-| [電位與等電位](https://arpowchao.github.io/physics-iv/#labs/potential-map) | 點電荷、平行板、帶電導體球。看切片、沿 x 的 V(x)，記錄起點 A 後比較靜電力作功。 |
+| [必歐－沙伐定律](https://arpowchao.github.io/physics-iv/#labs/biot) | 單一電流元、有限直線、指南針、雙平行導線、圓線圈、有限螺線管。移動 P、逐段看 ΔB，讀取 B 的三個分量。 |
+| [電力線與電位](https://arpowchao.github.io/physics-iv/#labs/potential-map) | 點電荷電力線與庫侖力、點電荷等電位線、平行板、帶電導體球。可切換通過 P 的等電位切片、沿 x 的 V(x)，也可記錄 A 後比較靜電力作功。 |
 | [磁力與電動機](https://arpowchao.github.io/physics-iv/#labs/magnetic-force) | 粒子軌跡、單一直導線、平行導線、線圈力矩與換向器。 |
-| [電磁感應](https://arpowchao.github.io/physics-iv/#labs/induction) | 滑棒、線圈進出場、磁棒、旋轉線圈、固定線圈改變 B；拖時間同步看 Φ、ε、I。 |
+| [電磁感應](https://arpowchao.github.io/physics-iv/#labs/induction) | 滑棒、線圈進出場、磁棒、旋轉線圈、固定線圈改變 B、變壓器。拖時間同步看磁通量與電路讀值。 |
+| [粒子加速器與極光](https://arpowchao.github.io/physics-iv/#labs/particle-apps) | 直線加速器、迴旋加速器、偶極地磁場中的粒子沉降與磁鏡折返。 |
+| [電磁波](https://arpowchao.github.io/physics-iv/#labs/em-wave) | 調整偏振角，從不同平面看 E、B 與傳播方向。 |
+
+粒子加速器採高中非相對論模型。極光採理想偶極地磁場，將高度 110 km 當作大氣入口，並放大迴旋半徑以看清軌跡。相關背景見 [OpenStax 迴旋加速器](https://openstax.org/books/university-physics-volume-2/pages/11-7-applications-of-magnetic-forces-and-fields)和 [NASA 極光說明](https://science.nasa.gov/sun/auroras/)。
 
 物理模型以全華課本為課程範圍，並對照 OpenStax 的 [必歐－沙伐定律](https://openstax.org/books/university-physics-volume-2/pages/12-1-the-biot-savart-law)及[動生電動勢](https://openstax.org/books/university-physics-volume-2/pages/13-3-motional-emf)。模擬在三維座標計算，再以可旋轉的正射投影顯示，不依賴 WebGL。有限導線省略外部回路，螺線管以同軸圓圈近似；畫面向量箭長不作量尺，量值以數字讀數為準。
 

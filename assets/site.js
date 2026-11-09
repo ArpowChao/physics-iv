@@ -10,7 +10,8 @@
   const chapter = id => EM.chapters.find(c => c.id === +id);
   const lab = id => EM.labs.find(c => c.id === id);
   const benchFor = sid => EM.workbenches.find(b=>b.sections.includes(sid));
-  const benchURL = (b,sid) => "#labs/"+b.id+({"1-2":"/charges","2-2":"/straight","2-3":"/wire","3-2":"/magnet","3-3":"/rotate"}[sid]||"");
+  const benchURL = (b,sid) => "#labs/"+b.id+({"1-1":"/field-lines","1-2":"/field-lines","2-2":"/straight","2-3":"/wire","3-2":"/magnet","3-3":"/rotate","3-4":"/transformer"}[sid]||"");
+  const particleLinks = () => link("#labs/particle-apps/linear","粒子加速器")+link("#labs/particle-apps/aurora","極光與磁鏡");
   const byChapter = id => EM.sections.filter(s=>s.id.startsWith(id+"-"));
   const stamp = id => String(id).padStart(2,"0");
   const reading = s => `課本 pp. ${s.pages}`;
@@ -100,7 +101,7 @@
       <section class="lesson-goal"><span class="lesson-kicker">這節要學會</span><p>${s.goal}</p></section>
       <div class="lesson-jumps">${chips([reading(s),curriculum(s)])}<a class="text-link" href="#course/${s.id}/1">本節觀念練習・${EM.conceptPractice[s.id].flat().length} 題 ↓</a></div>
       <section class="observe-card"><span class="lesson-kicker">01　先觀察</span><p>${s.lead}</p>
-        <div class="action-row">${benchFor(s.id)?link(benchURL(benchFor(s.id),s.id),"開啟三維工作臺 →","primary"):""}${link("#labs/"+s.lab,benchFor(s.id)?"先看基礎示意":"開啟實驗觀察 →")}</div></section>
+        <div class="action-row">${benchFor(s.id)?link(benchURL(benchFor(s.id),s.id),"開啟 2D／3D 工作臺 →","primary"):""}${s.id==="2-4"?particleLinks():""}${link("#labs/"+s.lab,benchFor(s.id)?"先看基礎示意":"開啟實驗觀察 →")}</div></section>
       <h2 class="section-title">02　抓住核心關係</h2>
       <section class="formula-card"><div class="equation"><div class="formula">${s.formula}</div></div>
         <details class="formula-detail"><summary>公式怎麼用・條件與說明</summary><p>${s.condition}</p></details>
@@ -155,10 +156,10 @@
 
   function labIndex() {
     main.innerHTML=`<div class="shell page">${sectionHead("LAB / 互動實驗","電磁實驗室","每次先改一個變因，記下讀值，再回到公式解釋。")}
-      <section class="lab-group"><h2 class="section-title">三維工作臺</h2>
+      <section class="lab-group"><h2 class="section-title">2D／3D 工作臺</h2>
         <div class="bench-index">${EM.workbenches.map(b=>`<a class="lab-card" href="#labs/${b.id}"><span class="mono">進階實驗 ${b.sections.join("・")}</span><strong>${b.title}</strong><span>${b.description}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div>
       </section>
-      ${EM.chapters.map(c=>`<section class="lab-group"><h2><span class="mono">${stamp(c.id)} /</span> ${c.name}</h2><div class="lab-grid">${byChapter(c.id).map(s=>`<a class="lab-card" href="#labs/${s.lab}"><span class="mono">LAB ${s.id}</span><strong>${lab(s.lab).name}</strong><span>${s.lead}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div></section>`).join("")}
+      ${EM.chapters.map(c=>`<section class="lab-group"><h2><span class="mono">${stamp(c.id)} /</span> ${c.name}</h2><div class="lab-grid">${byChapter(c.id).map(s=>`<a class="lab-card" href="${benchURL(benchFor(s.id),s.id)}"><span class="mono">LAB ${s.id}・2D／3D</span><strong>${s.name}</strong><span>${s.lead}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div></section>`).join("")}
     </div>`;
   }
   function experiment(config) {
@@ -167,7 +168,7 @@
       ${breadcrumbs("#labs","電磁實驗室","LAB "+s.id)}
       ${sectionHead("互動實驗・"+s.id,config.name)}
       <div class="lab-observation"><strong>帶著一個問題看</strong><p>${s.lead}</p></div>
-      ${benchFor(s.id)?`<div class="tool-shortcuts"><a href="${benchURL(benchFor(s.id),s.id)}">開啟相關三維工作臺 ↗</a></div>`:""}
+      ${benchFor(s.id)?`<div class="tool-shortcuts"><a href="${benchURL(benchFor(s.id),s.id)}">開啟相關 2D／3D 工作臺 ↗</a>${s.id==="2-4"?particleLinks():""}</div>`:""}
       <div class="lab-shell lab-layout">
         <div class="lab-stage" id="lab-plot"></div>
         <div class="lab-controls">

@@ -61,4 +61,27 @@ assert.ok(read("enter",.5).flux>0);eq(read("enter",.5).emf,0);
 assert.ok(read("magnet",.38).emf*read("magnet",.62).emf<0);
 eq(read("magnet",.5).emf,0);eq(read("rotate",.25).flux,0);
 eq(read("vary",.1).emf,0);eq(read("vary",.9).emf,0);
-console.log("Physics verified: 3D Biot–Savart, E = −∇V, magnetic force/torque, and Faraday/energy in 5 induction modes.");
+
+const accel={initial:80,voltage:400,b:.65,crossings:8};
+eq(P.linearAcceleration(accel,-26).energy,80);
+eq(P.linearAcceleration(accel,26).energy,1680);
+eq(P.linearAcceleration(accel,-18).energy,280);
+const cy=P.cyclotron(accel);
+for(let i=1;i<cy.arcs.length;i++){
+  vv(cy.arcs[i].point(0),cy.arcs[i-1].point(1));
+  eq(cy.arcs[i].energy-cy.arcs[i-1].energy,400);
+  eq(cy.arcs[i].radius/cy.arcs[i-1].radius,Math.sqrt(cy.arcs[i].energy/cy.arcs[i-1].energy));
+}
+const atmosphere=P.aurora({shell:2.5,pitch:0,longitude:37});
+assert.ok(atmosphere.reachesAtmosphere);
+eq((P.length(atmosphere.point(atmosphere.end))-1)*atmosphere.earthKm,110);
+const mirror=P.aurora({shell:2.5,pitch:55,longitude:37});
+assert.ok(!mirror.reachesAtmosphere);
+eq(Math.sin(P.rad(55))**2*mirror.ratio(mirror.end),1);
+const transformer=P.transformer({primary:150,secondary:300,voltage:60,frequency:60,load:100,closed:0});
+eq(transformer.secondary,120);eq(transformer.current,0);
+eq(transformer.at(.25).flux,0);eq(transformer.at(.25).secondary,120*Math.SQRT2);
+const wave=P.emWave({frequency:300,angle:37,phase:24});
+vv(P.cross(wave.electric,wave.magnetic),[1,0,0]);
+eq(wave.at(20),wave.at(20+wave.wavelength));
+console.log("Verified electromagnetic models, accelerator energy, magnetic mirroring, transformer ratios and plane wave orientation.");

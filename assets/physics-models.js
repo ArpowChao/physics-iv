@@ -120,7 +120,63 @@
     const i=p.closed?emf/p.resistance:0, heat=i*i*p.resistance;
     return {flux,emf,i,heat,x,v,overlap,angle,b,n,force:mode==="slide"&&v?-heat/v:0};
   }
-  const api={sum,mul,sub,dot,cross,length,unit,clamp,rad,TAU,zero,sample,direction,line,ring,biot,electro,magnetic,induction};
+  const elementaryCharge=1.602176634e-19, protonMass=1.67262e-27;
+  const ionSpeed=energy=>Math.sqrt(2*elementaryCharge*energy/protonMass);
+  function linearAcceleration(p,position){
+    const gaps=[-18,-6,6,18], halfWidth=1.4;
+    const energy=p.initial+p.voltage*gaps.reduce((n,gap)=>n+clamp((position-gap+halfWidth)/(2*halfWidth),0,1),0);
+    return {gaps,halfWidth,energy,speed:ionSpeed(energy),active:gaps.some(gap=>Math.abs(position-gap)<halfWidth)};
+  }
+  function cyclotron(p){
+    const arcs=[];
+    const period=TAU*protonMass/(elementaryCharge*p.b);
+    let startY=0;
+    for(let i=0;i<p.crossings;i++){
+      const energy=p.initial+p.voltage*(i+1), speed=ionSpeed(energy);
+      const radius=protonMass*speed/(elementaryCharge*p.b)*100;
+      const side=i%2===0?1:-1, start=startY;
+      const point=progress=>[side*radius*Math.sin(Math.PI*progress),start-side*radius*(1-Math.cos(Math.PI*progress)),0];
+      arcs.push({energy,speed,radius,point,side});
+      startY=point(1)[1];
+    }
+    return {arcs,period};
+  }
+  function aurora(p){
+    const earthKm=6371, atmosphere=1+110/earthKm, L=p.shell, pitch=rad(p.pitch), longitude=rad(p.longitude);
+    const limit=Math.acos(Math.sqrt(atmosphere/L));
+    const ratio=latitude=>Math.sqrt(1+3*Math.sin(latitude)**2)/Math.cos(latitude)**6;
+    const lossCone=Math.asin(1/Math.sqrt(ratio(limit)));
+    const reachesAtmosphere=pitch<=lossCone;
+    let low=0,high=limit;
+    if(!reachesAtmosphere){
+      for(let i=0;i<40;i++){
+        const mid=(low+high)/2;
+        if(Math.sin(pitch)**2*ratio(mid)>=1)high=mid;
+        else low=mid;
+      }
+    }
+    const end=reachesAtmosphere?limit:(low+high)/2;
+    const point=(latitude,shell=L,phi=longitude)=>{
+      const r=shell*Math.cos(latitude)**2;
+      return [r*Math.cos(latitude)*Math.cos(phi),r*Math.cos(latitude)*Math.sin(phi),r*Math.sin(latitude)];
+    };
+    return {point,ratio,atmosphere,limit,end,lossCone,reachesAtmosphere,earthKm};
+  }
+  function transformer(p){
+    const secondary=p.voltage*p.secondary/p.primary;
+    const current=p.closed?secondary/p.load:0;
+    const fluxPeak=Math.SQRT2*p.voltage/(p.primary*TAU*p.frequency);
+    const at=u=>({flux:fluxPeak*Math.cos(TAU*u),primary:Math.SQRT2*p.voltage*Math.sin(TAU*u),
+      secondary:Math.SQRT2*secondary*Math.sin(TAU*u)});
+    return {secondary,current,power:secondary*current,at};
+  }
+  function emWave(p){
+    const c=299792458, wavelength=c/(p.frequency*1e6)*100;
+    const electric=[0,Math.cos(rad(p.angle)),Math.sin(rad(p.angle))], magnetic=cross([1,0,0],electric);
+    const at=x=>Math.sin(TAU*(x/wavelength-p.phase/100));
+    return {c,wavelength,electric,magnetic,at};
+  }
+  const api={sum,mul,sub,dot,cross,length,unit,clamp,rad,TAU,zero,sample,direction,line,ring,biot,electro,magnetic,induction,linearAcceleration,cyclotron,aurora,transformer,emWave};
   globalThis.EMPhysics=api;
   if(typeof module!=="undefined")module.exports=api;
 })();
