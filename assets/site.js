@@ -1,7 +1,8 @@
 (() => {
   "use strict";
   const main = document.getElementById("main");
-  const links = [...document.querySelectorAll(".nav a")];
+  const sidebar = document.getElementById("sidebar");
+  const menuButton = sidebar.querySelector(".mobile-nav-toggle");
   const levels = ["記憶","理解","應用","分析"];
   const labels = {single:"單選",multi:"多選",group:"題組單選",written:"手寫"};
   const letters = "ABCDE";
@@ -16,90 +17,136 @@
   const safeRead = (key,fallback) => {try{return JSON.parse(localStorage.getItem("physics-iv:"+key)) ?? fallback;}catch{return fallback;}};
   const save = (key,value) => {try{localStorage.setItem("physics-iv:"+key,JSON.stringify(value));}catch{/* Session still works. */}};
   const learned = new Set(safeRead("learned",[]));
+  const solved = new Set(safeRead("concept-solved",[]));
   const answers = safeRead("answers",{});
-  let cleanup=()=>{}, homeIndex=0;
+  let cleanup=()=>{};
   const chips = tags => `<div class="chips">${tags.map(s=>`<span>${s}</span>`).join("")}</div>`;
   const eyebrow = text => `<p class="eyebrow">${text}</p>`;
   const sectionHead = (k,title,line) => `<div class="page-head">${eyebrow(k)}<h1>${title}</h1>${line?`<p>${line}</p>`:""}</div>`;
   const breadcrumbs = (url,label,last) => `<div class="breadcrumbs"><a href="${url}">${label}</a><span>/</span><span>${last}</span></div>`;
   const link = (url,label,kind="") => `<a class="button ${kind}" href="${url}">${label}</a>`;
   const figure = (id,caption) => `<figure class="exam-figure">${EM.figure(id)}<figcaption>${caption}</figcaption></figure>`;
+  const topicId = (s,i) => s.id+"-"+(i+1);
+  const topicQuestions = (s,i) => EM.conceptPractice[s.id][i];
+  const conceptCount = EM.sections.reduce((n,s)=>n+s.topics.length,0);
+  const questionCount = EM.sections.reduce((n,s)=>n+EM.conceptPractice[s.id].flat().length,0);
+  const scoreTopic = (s,i) => topicQuestions(s,i).filter((_,j)=>solved.has(topicId(s,i)+"-"+j)).length;
+  const scoreSection = s => s.topics.reduce((n,_,i)=>n+scoreTopic(s,i),0);
+  const topicScore = (s,i) => `答對過 ${scoreTopic(s,i)} / ${topicQuestions(s,i).length} 題`;
+  const chapterURL = id => "#course/chapter-"+id;
   const cards = () => `<div class="chapter-grid">${EM.chapters.map(c=>`<article class="chapter-card ${c.color}">
-    <div class="card-label"><span>${stamp(c.id)}</span><span>${c.en}</span></div>
-    <h3><a href="#course/${byChapter(c.id)[0].id}">${c.name}</a></h3><p>${c.line}</p>
-    <ol class="chapter-list">${byChapter(c.id).map(s=>`<li><a href="#course/${s.id}"><span class="mono">${s.id}</span><span>${s.name}</span>${learned.has(s.id)?'<span class="done" aria-label="已完成">✓</span>':""}</a></li>`).join("")}</ol>
-    <a class="text-link" href="#practice/${c.id}">開啟本章練習卷 <span aria-hidden="true">↗</span></a>
+    <span class="chapter-number">CHAPTER ${stamp(c.id)}</span>
+    <h3>${c.name}</h3><p>${c.line}</p>
+    <a class="text-link" href="${chapterURL(c.id)}">學習順序 → <span class="progress-note">${byChapter(c.id).filter(s=>learned.has(s.id)).length} / ${byChapter(c.id).length} 節</span></a>
   </article>`).join("")}</div>`;
 
   function home() {
-    const modes=[["field","電力線"],["particle","磁場軌跡"],["flux","磁通量"]];
-    main.innerHTML=`<section class="hero shell">
-      <div class="hero-copy">
-        ${eyebrow('<span class="signal"></span> 高中選修物理Ⅳ <span class="hero-divider">/</span> 108 課綱')}
-        <h1>電磁學<br>實驗筆記<span class="hero-dot">.</span></h1>
-        <p class="hero-lead">看電荷如何互相作用，追蹤磁場裡的軌跡，再找出電是怎麼感應出來的。</p>
-        <div class="action-row">${link("#course/1-1","開始第一節 →","primary")}${link("#labs","瀏覽互動實驗")}</div>
-      </div>
-      <div class="instrument" aria-label="互動實驗預覽">
-        <div class="instrument-bar"><span><span class="signal"></span> 電磁觀測窗</span><span id="scope-id"></span></div>
-        <div id="hero-plot" class="scope"></div>
-        <div class="instrument-controls"><div class="scope-tabs" role="group" aria-label="切換預覽">${modes.map(([id,name],i)=>`<button type="button" data-scope="${i}">${name}</button>`).join("")}</div><a id="scope-link" href="#labs">操作 ↗</a></div>
-      </div>
+    const finished=EM.sections.filter(s=>learned.has(s.id)).length;
+    const last=section(safeRead("last-lesson",""));
+    const start=(last&&!learned.has(last.id)?last:null)||EM.sections.find(s=>!learned.has(s.id))||EM.sections[0];
+    main.innerHTML=`<section class="home-hero">
+      <span class="view-eyebrow">高三・選修物理Ⅳ・電磁學</span>
+      <h1>從一個電荷，<br>看懂電與磁。</h1>
+      <p>先觀察現象，再用公式說明，每個概念做兩題檢核。每次讀一小節，慢慢把電與磁串起來。</p>
+      ${link("#course/"+start.id,last?"接著學 →":"從靜電學開始 →","primary")}
+      <p class="progress-note">${last?start.name+"　｜　":""}已自行確認理解 ${finished} / ${EM.sections.length} 節</p>
+      <progress class="learning-progress" aria-label="已自行確認理解的節數" value="${finished}" max="${EM.sections.length}"></progress>
     </section>
-    <section class="shell course-map">
-      <div class="section-row"><div>${eyebrow("COURSE MAP / 課程地圖")}<h2>從課本小節開始</h2></div><p>3 章 · ${EM.sections.length} 節 · ${EM.labs.length} 個互動實驗</p></div>
-      ${cards()}
-    </section>`;
-    function plot(i) {
-      homeIndex=i;
-      const [id]=modes[i], config=lab(id), s=EM.sections.find(s=>s.lab===id);
-      document.getElementById("hero-plot").innerHTML=EM.labOutput(config,EM.defaults(config)).diagram;
-      document.getElementById("scope-id").textContent="FIG. "+s.id;
-      document.getElementById("scope-link").href="#labs/"+id;
-      for (const b of main.querySelectorAll("[data-scope]")) b.setAttribute("aria-pressed",String(+b.dataset.scope===i));
-    }
-    plot(homeIndex);
-    main.querySelector(".scope-tabs").addEventListener("click",e=>{if(e.target.matches("[data-scope]"))plot(+e.target.dataset.scope);});
+    <div class="study-flow" aria-label="每節學習順序">
+      <div><b>01　看現象</b><p>帶著一個問題觀察實驗。</p></div>
+      <div><b>02　懂關係</b><p>讀重點與例題，留意公式條件。</p></div>
+      <div><b>03　試著解釋</b><p>做概念練習，再決定是否往下學。</p></div>
+    </div>
+    <h2 class="section-title">依照課堂進度，選一章</h2>${cards()}
+    <h2 class="section-title">需要時再用</h2>
+    <div class="tool-shortcuts"><a href="#reference">找公式</a><a href="#labs">做實驗</a><a href="#concepts">練習各概念</a><a href="#practice">做逐章練習卷</a></div>
+    <details class="lesson-disclosure"><summary>先備工具：常用符號與單位</summary><div class="disclosure-content">
+      <dl class="unit-list"><div><dt>電量 q</dt><dd>庫侖（C）；1 μC = 10⁻⁶ C</dd></div><div><dt>電場 E</dt><dd>牛頓／庫侖（N/C），也可用 V/m</dd></div><div><dt>電位 V</dt><dd>伏特（V）；1 V = 1 J/C</dd></div><div><dt>磁場 B</dt><dd>特斯拉（T）；1 μT = 10⁻⁶ T</dd></div><div><dt>磁通量 Φ</dt><dd>韋伯（Wb）；1 Wb = 1 T·m²</dd></div></dl>
+    </div></details><p class="progress-note">學習與練習紀錄只存在目前瀏覽器。</p>`;
   }
 
   function courseIndex() {
-    main.innerHTML=`<div class="shell page">${sectionHead("COURSE / 課本導讀","課程導讀","依課本編排。每節先看一個現象，再讀核心概念、做例題與自我檢核。")}${cards()}</div>`;
+    main.innerHTML=`<div class="shell page">${sectionHead("高中選修物理Ⅳ","課程導讀","依課本順序選章節。每節先看現象，再讀核心概念，最後用題目檢核。")}${cards()}</div>`;
   }
-  function lesson(s) {
-    const c=chapter(s.id[0]), i=EM.sections.indexOf(s), first=byChapter(c.id)[0], last=byChapter(c.id).at(-1);
-    const prev=EM.sections[i-1], next=EM.sections[i+1];
-    main.innerHTML=`<div class="shell page">
-      ${breadcrumbs("#course","課程導讀",c.name)}
-      <div class="lesson-layout">
-        <aside class="lesson-nav" aria-label="本章小節"><p class="eyebrow">第 ${c.id} 章</p><strong>${c.name}</strong>
-          ${byChapter(c.id).map(o=>`<a href="#course/${o.id}" ${o===s?'aria-current="page"':""}><span class="mono">${o.id}</span><span>${o.name}${learned.has(o.id)?" ✓":""}</span></a>`).join("")}
-          <a class="text-link" href="#practice/${c.id}">本章練習卷 ↗</a>
-        </aside>
-        <article class="lesson">
-          ${sectionHead("SECTION / "+s.id,s.name,s.goal)}
-          ${chips([reading(s),curriculum(s)])}
-          <div class="observe"><div>${eyebrow("01 / 先觀察")}<h2>${s.lead}</h2></div>${link("#labs/"+s.lab,"打開對應實驗 →","primary")}</div>
-          <div class="lesson-block">${eyebrow("02 / 抓住關係")}<h2>核心概念</h2>
-            ${s.topics.map(([a,b])=>`<section class="topic"><h3>${a}</h3><p>${b}</p></section>`).join("")}
-            <div class="equation"><div class="formula">${s.formula}</div><p>${s.condition}</p></div>
-          </div>
-          <div class="lesson-block">${eyebrow("03 / 動手練習")}<h2>例題與檢核</h2>
-            ${[s.example,s.check].map(([prompt,answer],j)=>`<details class="fold"><summary><span>${j===0?"例題":"自我檢核"}</span><span>${prompt}</span></summary><p>${answer}</p></details>`).join("")}
-          </div>
-          ${s===last?`<div class="lesson-block">${eyebrow("CHAPTER LAB / 課本探究")}<h2>${c.activity[0]}</h2><p>${c.activity[1]}</p><p><strong>討論：</strong>${c.activity[2]}</p><p class="muted">課本 pp. ${c.activityPage}</p></div>`:""}
-          <div class="lesson-next"><button type="button" id="mark" class="button" aria-pressed="${learned.has(s.id)}">${learned.has(s.id)?"✓ 已標記學會":"標記為已學會"}</button>
-            ${prev?link("#course/"+prev.id,"← 上一節"):""}${next?link("#course/"+next.id,"下一節 →","primary"):link("#practice/"+c.id,"本章練習卷 →","primary")}
-          </div>
-          ${s===first?'<p class="muted small">完成狀態只記在這個瀏覽器。</p>':""}
-        </article>
-      </div>
+  function chapterView(c) {
+    const sections=byChapter(c.id);
+    main.innerHTML=`<div class="shell page">${sectionHead("CHAPTER "+stamp(c.id)+"・選修物理Ⅳ",c.name,c.line)}
+      <h2 class="section-title">本章學習順序</h2>
+      <div class="node-list">${sections.map(s=>`<a href="#course/${s.id}"><span class="node-status">${learned.has(s.id)?"✓ 已確認":s.id}</span><div><strong>${s.name}</strong><p>${s.goal}</p></div></a>`).join("")}</div>
+      <details class="lesson-disclosure"><summary>把本章串起來：課本探究</summary><div class="disclosure-content"><h3>${c.activity[0]}</h3><p>${c.activity[1]}</p><p><strong>討論：</strong>${c.activity[2]}</p><p class="muted">課本 pp. ${c.activityPage}</p></div></details>
+      <div class="tool-shortcuts"><a href="#concepts/${c.id}">練本章各概念</a><a href="#practice/${c.id}">做本章練習卷</a></div>
     </div>`;
+  }
+  function conceptIndex(selected) {
+    const filter=chapter(selected);
+    main.innerHTML=`<div class="shell page">${sectionHead("觀念練習","依章節練習各概念",`共 ${EM.sections.length} 節、${conceptCount} 個概念、${questionCount} 題。選一個概念，直接跳到該節的兩道練習題。`)}
+      <div class="concept-filters" aria-label="篩選章節">${[[null,"全部"],...EM.chapters.map(c=>[c.id,c.name])].map(([id,name])=>`<a class="button ${(filter?.id??null)===id?"primary":""}" ${(filter?.id??null)===id?'aria-current="page"':""} href="#concepts${id?"/"+id:""}">${name}</a>`).join("")}</div>
+      ${(filter?[filter]:EM.chapters).map(c=>`<section class="concept-chapter"><h2 class="section-title">${c.name}</h2>
+        ${byChapter(c.id).map(s=>`<details class="lesson-disclosure" ${filter?"open":""}><summary>${s.id}　${s.name}<span class="progress-note">答對過 ${scoreSection(s)} / ${EM.conceptPractice[s.id].flat().length} 題</span></summary>
+          <div class="disclosure-content node-list">${s.topics.map(([name],i)=>`<a href="#course/${s.id}/${i+1}"><span class="node-status">${i+1}</span><div><strong>${name}</strong><p>${topicScore(s,i)}</p></div></a>`).join("")}</div>
+        </details>`).join("")}
+      </section>`).join("")}
+      <p class="practice-note"><a class="text-link" href="#practice">做逐章練習卷 →</a></p>
+    </div>`;
+  }
+  function lesson(s, targetTopic) {
+    const c=chapter(s.id[0]), i=EM.sections.indexOf(s);
+    const prev=EM.sections[i-1], next=EM.sections[i+1];
+    save("last-lesson",s.id);
+    main.innerHTML=`<article class="lesson">
+      ${sectionHead(c.name+"・第 "+s.id.split("-")[1]+" 節",s.name)}
+      <section class="lesson-goal"><span class="lesson-kicker">這節要學會</span><p>${s.goal}</p></section>
+      <div class="lesson-jumps">${chips([reading(s),curriculum(s)])}<a class="text-link" href="#course/${s.id}/1">本節觀念練習・${EM.conceptPractice[s.id].flat().length} 題 ↓</a></div>
+      <section class="observe-card"><span class="lesson-kicker">01　先觀察</span><p>${s.lead}</p>${link("#labs/"+s.lab,"開啟實驗觀察 →")}</section>
+      <h2 class="section-title">02　抓住核心關係</h2>
+      <section class="formula-card"><div class="equation"><div class="formula">${s.formula}</div></div>
+        <details class="formula-detail"><summary>公式怎麼用・條件與說明</summary><p>${s.condition}</p></details>
+      </section>
+      <section class="worked-example"><span class="lesson-kicker">跟著做一題</span><h2>${s.example[0]}</h2><p>${s.example[1]}</p></section>
+      <h2 class="section-title" id="section-practice">03　檢查自己是否理解</h2>
+      <p class="progress-note" id="section-progress" role="status">本節已答對過 ${scoreSection(s)} / ${EM.conceptPractice[s.id].flat().length} 題</p>
+      ${s.topics.map(([name,note],k)=>`<section class="concept-card" id="concept-${topicId(s,k)}" aria-labelledby="topic-${topicId(s,k)}">
+        <h3 id="topic-${topicId(s,k)}" tabindex="-1">${name}</h3><p>${note}</p>
+        <details class="lesson-disclosure topic-practice" data-topic="${k}" ${+targetTopic===k+1?"open":""}>
+          <summary><span>練習這個概念</span><span class="progress-note" data-topic-score>${topicScore(s,k)}</span></summary>
+          <div class="disclosure-content">
+            ${topicQuestions(s,k).map((q,j)=>`<div class="lesson-check" data-question="${j}" role="group" aria-labelledby="prompt-${topicId(s,k)}-${j}">
+              <span class="lesson-kicker">第 ${j+1} 題・${q.level}</span><h4 id="prompt-${topicId(s,k)}-${j}">${q.stem}</h4>
+              ${q.figure?figure(q.figure,"練習題圖"):""}
+              <div class="check-options">${q.choices.map((choice,a)=>`<button type="button" data-choice="${a}" aria-pressed="false"><span aria-hidden="true">${letters[a]}.</span><span>${choice}</span></button>`).join("")}</div>
+              <div class="check-feedback" role="status"></div>
+            </div>`).join("")}
+          </div>
+        </details>
+      </section>`).join("")}
+      <details class="lesson-disclosure"><summary>綜合自我檢核</summary><div class="disclosure-content"><p><strong>${s.check[0]}</strong></p><p>${s.check[1]}</p></div></details>
+      <section class="lesson-finish"><p>試著用自己的話說明本節的重點，能說清楚再確認理解。</p>
+        <div class="action-row"><button type="button" id="mark" class="button primary" aria-pressed="${learned.has(s.id)}">${learned.has(s.id)?"✓ 已確認理解・點此取消":"我能說明本節重點"}</button>${link("#practice/"+c.id,"本章練習卷")}</div>
+        <div class="lesson-neighbors"><a href="${prev?"#course/"+prev.id:chapterURL(c.id)}">← ${prev?.name||"本章學習順序"}</a><a href="${next?"#course/"+next.id:"#home"}">${next?.name||"回到學習首頁"} →</a></div>
+      </section>
+    </article>`;
+    main.querySelector(".lesson").addEventListener("click",e=>{
+      const b=e.target.closest("[data-choice]");
+      if(!b)return;
+      const question=b.closest("[data-question]"), details=question.closest("[data-topic]");
+      const k=+details.dataset.topic, j=+question.dataset.question, picked=+b.dataset.choice, q=topicQuestions(s,k)[j], correct=picked===q.key;
+      question.querySelectorAll("[data-choice]").forEach(el=>el.setAttribute("aria-pressed",String(el===b)));
+      const feedback=question.querySelector(".check-feedback");
+      feedback.dataset.result=correct?"right":"retry";
+      feedback.innerHTML=`<strong>${correct?"答對了。":"再想一想。答案是 "+letters[q.key]+"。"}</strong> ${q.explanation}`;
+      if(correct){
+        solved.add(topicId(s,k)+"-"+j);
+        save("concept-solved",[...solved]);
+        details.querySelector("[data-topic-score]").textContent=topicScore(s,k);
+        document.getElementById("section-progress").textContent=`本節已答對過 ${scoreSection(s)} / ${EM.conceptPractice[s.id].flat().length} 題`;
+      }
+    });
     document.getElementById("mark").addEventListener("click",e=>{
       if(learned.has(s.id))learned.delete(s.id);else learned.add(s.id);
       save("learned",[...learned]);
       e.target.setAttribute("aria-pressed",String(learned.has(s.id)));
-      e.target.textContent=learned.has(s.id)?"✓ 已標記學會":"標記為已學會";
-      main.querySelector(".lesson-nav [aria-current] span:nth-child(2)").textContent=s.name+(learned.has(s.id)?" ✓":"");
+      e.target.textContent=learned.has(s.id)?"✓ 已確認理解・點此取消":"我能說明本節重點";
+      sidebar.querySelector(".nav-item-node[aria-current] .node-name").textContent=s.name+(learned.has(s.id)?" ✓":"");
     });
   }
 
@@ -112,13 +159,10 @@
     const s=EM.sections.find(s=>s.lab===config.id), p=EM.defaults(config);
     main.innerHTML=`<div class="shell page lab-page">
       ${breadcrumbs("#labs","電磁實驗室","LAB "+s.id)}
-      ${sectionHead("LAB / "+s.id,config.name,s.lead)}
-      <div class="lab-layout">
-        <div class="instrument">
-          <div class="instrument-bar"><span><span class="signal"></span> 模擬視窗</span><span>LAB ${s.id}</span></div>
-          <div id="lab-plot" class="scope"></div>
-          <dl id="readouts" class="readouts"></dl>
-        </div>
+      ${sectionHead("互動實驗・"+s.id,config.name)}
+      <div class="lab-observation"><strong>帶著一個問題看</strong><p>${s.lead}</p></div>
+      <div class="lab-shell lab-layout">
+        <div class="lab-stage" id="lab-plot"></div>
         <div class="lab-controls">
           <h2>調整參數</h2>
           <form id="params">${config.controls.map(c=>c.choices?
@@ -128,6 +172,7 @@
             ${config.animate?'<p class="muted small">播放為示意；實際週期見讀值。</p>':""}
           </form>
         </div>
+        <dl id="readouts" class="readouts"></dl>
       </div>
       <div class="lab-notes">
         <div class="panel"><h2>照著做</h2><ol>${config.guide.map(g=>`<li>${g}</li>`).join("")}</ol></div>
@@ -167,6 +212,7 @@
 
   function practiceIndex() {
     main.innerHTML=`<div class="shell page">${sectionHead("PRACTICE / 逐章練習卷","練習卷","先在線作答或列印成紙本。交卷後可看詳解與課綱標記；手寫題依配分規準自評。")}
+      <p><a class="text-link" href="#concepts">想先複習單一概念？開啟觀念練習 →</a></p>
       <div class="chapter-grid">${EM.exams.map(e=>{const c=chapter(e.chapter);return `<article class="chapter-card ${c.color}">
         <div class="card-label"><span>${stamp(c.id)}</span><span>CHAPTER PRACTICE</span></div><h3><a href="#practice/${c.id}">${c.name}</a></h3>
         <p>12 題・100 分・建議 ${e.minutes} 分鐘</p>
@@ -270,33 +316,80 @@
           <li>全華《選修物理Ⅳ》第一至第三章；頁碼為印刷頁碼。</li>
           <li><a class="text-link" href="https://stv.naer.edu.tw/data/course_outline/pta_18538_240851_60502.pdf">《十二年國民基本教育課程綱要・自然科學領域》</a>，加深加廣選修第五學習階段：學習表現 pp. 42–43、學習內容 pp. 47–48、物理內容說明 pp. 195–196。</li>
           <li>David R. Krathwohl，〈A Revision of Bloom’s Taxonomy: An Overview〉及所附修訂版 Bloom 文獻。練習卷採記憶、理解、應用、分析四層。</li>
-          <li><a class="text-link" href="https://github.com/ArpowChao/phy-wave-optics">波動與光學・學習筆記</a>：參考其課程導讀、互動實驗與檢核編排。</li>
+          <li><a class="text-link" href="https://github.com/ArpowChao/phy-wave-optics">波動與光學・學習筆記</a>：沿用其學習首頁、章節側欄、導讀與檢核版面。</li>
         </ul>
         <p>導讀、圖與試題均為本站整理與命製。練習卷依所列規格編排，未套用段考範本。</p>
       </section>
     </div>`;
   }
 
-  function route() {
-    const hash=location.hash.slice(1);
+  const sidebarGroups = document.getElementById("node-nav-container");
+  sidebarGroups.innerHTML=EM.chapters.map(c=>`<details class="chapter-nav" data-chapter="${c.id}">
+    <summary><span>${stamp(c.id)}　${c.name}</span></summary>
+    <ul class="nav-list"><li><a class="nav-item" href="${chapterURL(c.id)}" data-route="course/chapter-${c.id}"><span>本章學習順序</span></a></li>
+      ${byChapter(c.id).map(s=>`<li><a class="nav-item nav-item-node" href="#course/${s.id}" data-route="course/${s.id}"><span class="node-code-badge">${s.id}</span><span class="node-name">${s.name}</span></a></li>`).join("")}
+    </ul></details>`).join("");
+
+  function toggleMenu(open) {
+    sidebar.classList.toggle("mobile-open",open);
+    menuButton.setAttribute("aria-expanded",String(open));
+    menuButton.setAttribute("aria-label",open?"關閉導覽選單":"開啟導覽選單");
+  }
+  menuButton.addEventListener("click",()=>toggleMenu(menuButton.getAttribute("aria-expanded")==="false"));
+  sidebar.addEventListener("keydown",e=>{if(e.key==="Escape"&&sidebar.classList.contains("mobile-open")){toggleMenu(false);menuButton.focus();}});
+  sidebar.addEventListener("click",e=>{
+    const a=e.target.closest('a[href^="#"]');
+    if(a){toggleMenu(false);if(a.hash===location.hash){window.scrollTo(0,0);main.focus({preventScroll:true});}}
+  });
+  document.getElementById("footer-top").addEventListener("click",()=>{window.scrollTo(0,0);main.focus({preventScroll:true});});
+  document.getElementById("toolbar-back").addEventListener("click",()=>{
+    if(history.state?.emIVDepth>0)history.back();else location.hash="home";
+  });
+
+  function route(focus=false) {
+    const hash=location.hash.slice(1)||"home";
     if(hash==="main")return;
-    const [page,id]=hash.split("/");
+    const [page,id,topic]=hash.split("/");
     cleanup();cleanup=()=>{};
-    for(const a of links){if(a.hash==="#"+page)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");}
-    let title="";
+    let title="", active=page, activeChapter=null, topicTarget=null, breadcrumb="";
     if(page==="course"){
-      const s=section(id);if(s){lesson(s);title=s.name;}else{courseIndex();title="課程導讀";}
+      const s=section(id), c=id?.startsWith("chapter-")?chapter(id.slice(8)):null;
+      if(s){title=s.name;activeChapter=chapter(s.id[0]);active="course/"+s.id;breadcrumb=activeChapter.name+" › "+title;topicTarget=Number.isInteger(+topic)&&+topic>=1&&+topic<=s.topics.length?topicId(s,+topic-1):null;}
+      else if(c){chapterView(c);title=c.name;activeChapter=c;active=hash;}
+      else{courseIndex();title="課程導讀";}
     }else if(page==="labs"){
       const config=lab(id);if(config){experiment(config);title=config.name;}else{labIndex();title="電磁實驗室";}
+    }else if(page==="concepts"){
+      conceptIndex(id);title="觀念練習";
     }else if(page==="practice"){
       const e=EM.exams.find(e=>e.chapter===+id);if(e){practice(e);title=chapter(id).name+"練習卷";}else{practiceIndex();title="練習卷";}
-    }else if(page==="reference"){reference();title="公式與課綱對照";}else home();
-    document.title=(title?title+"｜":"")+"電磁學實驗筆記";
-    main.dataset.route=hash||"home";
+    }else if(page==="reference"){reference();title="公式速查表";}else{home();active="home";}
+    for(const a of sidebar.querySelectorAll("[data-route]")){
+      if(a.dataset.route===active){a.setAttribute("aria-current","page");const group=a.closest("details.sidebar-more");if(group)group.open=true;}
+      else a.removeAttribute("aria-current");
+      if(a.classList.contains("nav-item-node")){
+        const s=section(a.dataset.route.split("/")[1]);
+        a.querySelector(".node-name").textContent=s.name+(learned.has(s.id)?" ✓":"");
+      }
+    }
+    sidebarGroups.querySelectorAll(".chapter-nav").forEach(group=>{group.open=+group.dataset.chapter===activeChapter?.id;});
+    if(page==="course"&&section(id))lesson(section(id),topic);
+    document.getElementById("view-breadcrumb").textContent=breadcrumb||title||"學習首頁";
+    document.title=(title?title+"｜":"")+"電磁學・學習筆記";
+    main.dataset.route=hash;
+    if(topicTarget){
+      const target=document.getElementById("topic-"+topicTarget);
+      target.focus({preventScroll:true});
+      target.scrollIntoView({block:"start"});
+    }else if(focus){window.scrollTo(0,0);main.focus({preventScroll:true});}
   }
+  let navDepth=history.state?.emIVDepth??0;
+  history.replaceState({...history.state,emIVDepth:navDepth},"");
   window.addEventListener("hashchange",()=>{
     if(location.hash==="#main")return;
-    route();window.scrollTo(0,0);main.focus({preventScroll:true});
+    navDepth=history.state?.emIVDepth??(navDepth+1);
+    history.replaceState({...history.state,emIVDepth:navDepth},"");
+    toggleMenu(false);route(true);
   });
   document.querySelector(".skip").addEventListener("click",e=>{e.preventDefault();main.focus();});
   route();

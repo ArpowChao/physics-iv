@@ -1,4 +1,4 @@
-"""Check lesson links, simulation outputs, practice grading, and responsive layout."""
+"""Check learning navigation, concept feedback, simulation outputs, exams, and responsive layout."""
 import argparse
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -14,6 +14,9 @@ def run(base, out):
 
         def go(route):
             page.goto(f"{base.rstrip('/')}/#{route}")
+            wait_route(route)
+
+        def wait_route(route):
             page.wait_for_function(
                 "(route) => document.querySelector('main').dataset.route === route",
                 arg=route, timeout=5000,
@@ -27,14 +30,40 @@ def run(base, out):
 
         go("home")
         assert page.locator(".chapter-card").count() == 3
-        assert page.locator(".chapter-list li").count() == 12
-        page.get_by_role("button", name="磁場軌跡").click()
-        assert page.locator("#scope-link").get_attribute("href") == "#labs/particle"
-        sections = page.evaluate("EM.sections.map(({id, lab}) => [id, lab])")
-        assert len(sections) == len(set(i[1] for i in sections)) == 12
-        for sid, lid in sections:
+        assert page.locator("#sidebar .nav-item-node").count() == 12
+        assert page.locator("#sidebar .chapter-nav[open]").count() == 0
+        assert page.locator(".study-flow > div").count() == 3
+        page.locator(".chapter-card a").first.click()
+        wait_route("course/chapter-1")
+        assert page.locator(".node-list a").count() == 3
+        assert page.locator("#sidebar .chapter-nav[open]").count() == 1
+        page.locator("#toolbar-back").click()
+        wait_route("home")
+        sections = page.evaluate("EM.sections.map(({id, lab, topics}) => [id, lab, topics.length, EM.conceptPractice[id]])")
+        assert len(sections) == len({i[1] for i in sections}) == 12
+        assert sum(s[2] for s in sections) == 30
+        assert sum(len(group) for _, _, _, groups in sections for group in groups) == 60
+        unique_stems = set()
+        for sid, lid, topic_count, groups in sections:
             go(f"course/{sid}")
-            assert page.locator(".observe a").get_attribute("href") == f"#labs/{lid}"
+            assert page.locator(".observe-card a").get_attribute("href") == f"#labs/{lid}"
+            assert page.locator("#sidebar .nav-item-node[aria-current=page]").get_attribute("href") == f"#course/{sid}"
+            assert page.locator(".concept-card").count() == len(groups) == topic_count
+            for i, group in enumerate(groups):
+                assert len(group) == 2
+                details = page.locator(f'.topic-practice[data-topic="{i}"]')
+                details.locator("summary").click()
+                for j, q in enumerate(group):
+                    assert q["stem"] not in unique_stems and q["explanation"]
+                    unique_stems.add(q["stem"])
+                    assert q["level"] in {"記憶", "理解", "應用", "分析"}
+                    assert len(set(q["choices"])) == 4 and 0 <= q["key"] < 4
+                    rendered = details.locator(f'[data-question="{j}"]')
+                    assert rendered.locator("svg").count() == int(bool(q["figure"]))
+                    rendered.locator(f'[data-choice="{q["key"]}"]').click()
+                    assert "答對了" in rendered.locator(".check-feedback").inner_text()
+                assert "2 / 2" in details.locator("[data-topic-score]").inner_text()
+                details.locator("summary").click()
             go(f"labs/{lid}")
             assert page.locator("#lab-plot svg").count() == 1
             assert page.locator("#readouts dd").count() >= 2
@@ -45,6 +74,17 @@ def run(base, out):
         page.reload()
         assert page.locator("#mark").get_attribute("aria-pressed") == "true"
         page.locator("#mark").click()
+        go("concepts/1")
+        assert page.locator(".concept-chapter").count() == 1
+        assert "2 / 2" in page.locator(".node-list a").first.inner_text()
+        page.locator(".node-list a").first.click()
+        wait_route("course/1-1/1")
+        assert page.locator(".topic-practice[open]").count() == 1
+        assert page.locator("#topic-1-1-1").evaluate("el => el === document.activeElement")
+        choice = page.locator(".topic-practice[open] [data-question='0'] [data-choice='0']")
+        choice.click()
+        assert "答案是 B" in page.locator(".topic-practice[open] .check-feedback").first.inner_text()
+        assert "2 / 2" in page.locator(".topic-practice[open] [data-topic-score]").inner_text()
 
         go("labs/coulomb")
         assert "0.3375 N" in readout()
@@ -137,14 +177,15 @@ def run(base, out):
             assert page.locator("#exam-form input:checked").count() == 0
         assert len(seen_sections) == 12
 
-        routes = ["home", "course", "course/2-4", "labs", "labs/particle", "labs/conductors",
-                  "labs/transformer", "practice", "practice/1", "practice/2", "practice/3", "reference"]
+        routes = ["home", "course", "course/chapter-2", "course/2-4", "course/1-2/1", "course/3-3/2",
+                  "labs", "labs/particle", "labs/conductors", "labs/transformer",
+                  "concepts", "concepts/3", "practice", "practice/1", "practice/2", "practice/3", "reference"]
         for width in [320, 390, 768, 1024, 1440]:
             page.set_viewport_size({"width": width, "height": 940})
             for route in routes:
                 go(route)
                 assert page.evaluate("document.documentElement.scrollWidth === innerWidth"), (width, route)
-                assert page.locator("main p:visible, .options label span:last-child:visible").evaluate_all(
+                assert page.locator("main p:not(.eyebrow):visible, .options label span:last-child:visible, .check-options button span:last-child:visible").evaluate_all(
                     """elements => elements.every(e => {
                         const c = getComputedStyle(e);
                         return e.getBoundingClientRect().width >= 90 &&
@@ -152,8 +193,16 @@ def run(base, out):
                             c.writingMode === 'horizontal-tb' && c.wordBreak !== 'break-all';
                     })"""
                 ), (width, route, "prose")
+            if width <= 900:
+                go("home")
+                assert not page.locator("#side-links").is_visible()
+                page.get_by_role("button", name="開啟導覽選單").click()
+                assert page.locator("#side-links").is_visible()
+                page.locator("#sidebar [data-route=concepts]").click()
+                wait_route("concepts")
+                assert not page.locator("#side-links").is_visible()
             if out and width in (390, 1440):
-                for route in ["home", "labs/particle", "practice/1"]:
+                for route in ["home", "course/1-1", "course/1-2/1", "course/3-3/2", "concepts/3", "labs/particle", "practice/1"]:
                     go(route)
                     page.screenshot(path=out / f"{width}-{route.replace('/', '-')}.png")
         if out:
@@ -166,7 +215,7 @@ def run(base, out):
                 page.evaluate("delete document.body.dataset.print")
         assert not errors, errors
         browser.close()
-    print("Passed: 12 lessons, 12 labs, 36 questions, grading and persistence, 5 responsive widths.")
+    print("Passed: 12 lessons, 30 concepts, 60 concept questions, 12 labs, 36 exam questions, and 5 responsive widths.")
 
 
 if __name__ == "__main__":

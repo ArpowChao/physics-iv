@@ -4,32 +4,47 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="高中選修物理Ⅳ：靜電學、電流磁效應、電磁感應。課本導讀、可調參數的電磁實驗與逐章練習卷。">
-  <title>電磁學實驗筆記｜選修物理Ⅳ</title>
+  <title>電磁學・學習筆記｜選修物理Ⅳ</title>
   <link rel="icon" href="assets/field.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/site.css">
+  <link rel="stylesheet" href="assets/learning-layout.css">
   <script defer src="data/course.js"></script>
+  <script defer src="data/concept-practice.js"></script>
   <script defer src="data/exams.js"></script>
   <script defer src="assets/labs.js"></script>
   <script defer src="assets/site.js"></script>
 </head>
 <body>
   <a class="skip" href="#main">跳至主要內容</a>
-  <header class="site-header">
-    <div class="shell header-row">
-      <a class="brand" href="#home"><img src="assets/field.svg" width="36" height="36" alt=""><span>電磁學實驗筆記</span></a>
-      <nav class="nav" aria-label="主要導覽">
-        <a href="#course">課程</a><a href="#labs">實驗</a><a href="#practice">練習卷</a><a href="#reference">公式與對照</a>
-      </nav>
+  <nav id="sidebar" aria-label="主要導覽">
+    <div class="sidebar-brand"><a href="#home">電磁學・學習筆記</a><p>高三・選修物理Ⅳ</p></div>
+    <button class="mobile-nav-toggle" type="button" aria-label="開啟導覽選單" aria-expanded="false" aria-controls="side-links"><span aria-hidden="true">☰</span></button>
+    <div id="side-links">
+      <div class="nav-section-title">開始</div>
+      <a class="nav-item" href="#home" data-route="home"><span aria-hidden="true">⌂</span><span>學習首頁</span></a>
+      <div class="nav-section-title">章節學習</div>
+      <div id="node-nav-container"></div>
+      <div class="nav-section-title">複習工具箱</div>
+      <a class="nav-item" href="#reference" data-route="reference"><span aria-hidden="true">📐</span><span>公式速查表</span></a>
+      <a class="nav-item" href="#labs" data-route="labs"><span aria-hidden="true">🔬</span><span>互動實驗室</span></a>
+      <a class="nav-item" href="#concepts" data-route="concepts"><span aria-hidden="true">✏️</span><span>觀念練習</span></a>
+      <details class="sidebar-more"><summary><span>更多複習資源</span></summary>
+        <a class="nav-item" href="#practice" data-route="practice"><span aria-hidden="true">📚</span><span>逐章練習卷</span></a>
+        <a class="nav-item" href="https://arpowchao.github.io/phy-wave-optics/"><span aria-hidden="true">↗</span><span>波動與光學・學習筆記</span></a>
+      </details>
     </div>
-  </header>
-  <main id="main" tabindex="-1"><p class="shell">載入課程中…</p></main>
-  <noscript><p class="shell">請開啟 JavaScript，以使用章節導覽、模擬與練習卷。</p></noscript>
-  <footer class="site-footer">
-    <div class="shell footer-row">
-      <span>電磁學實驗筆記 <span class="mono">/</span> 高中選修物理Ⅳ</span>
-      <a href="https://arpowchao.github.io/phy-wave-optics/">選修物理Ⅲ・波動與光學 ↗</a>
-      <a href="https://github.com/ArpowChao/physics-iv">GitHub ↗</a>
+  </nav>
+  <div class="app-workspace">
+    <div class="view-toolbar" aria-label="頁面導覽">
+      <button type="button" id="toolbar-back" aria-label="回到上一頁">← <span class="toolbar-long">上一頁</span></button>
+      <a href="#home" aria-label="回到學習首頁">⌂ <span class="toolbar-long">首頁</span></a>
+      <span class="view-breadcrumb" id="view-breadcrumb">學習首頁</span>
     </div>
-  </footer>
+    <main id="main" tabindex="-1"><div class="page-status" role="status">載入課程中…<noscript><p>請開啟 JavaScript，以使用章節導覽、模擬與練習。</p></noscript></div></main>
+    <footer class="app-footer">
+      <div><strong>電磁學・學習筆記</strong><span>高三選修物理Ⅳ・觀察 → 理解 → 練習</span></div>
+      <div class="footer-actions"><a href="https://github.com/ArpowChao/physics-iv">GitHub ↗</a><button type="button" id="footer-top">↑ 回到頂部</button></div>
+    </footer>
+  </div>
 </body>
 </html>

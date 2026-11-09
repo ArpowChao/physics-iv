@@ -259,6 +259,27 @@
   ];
   const fig = (label,draw) => ({label,draw});
   const figures = {
+    conceptField:fig("五條由左往右的電力線向右靠攏，P 在左側中線上，Q 在右側中線上。",()=>{
+      let s=mesh();
+      for(let i=-2;i<=2;i++){
+        const line=sample(36,u=>[64+u*432,155+i*(53-38*u)]);
+        s+=path(line,colors.teal,2)+arrow(...line[16],...line[19],colors.teal,2);
+      }
+      return s+circ(126,155,5,colors.ink)+t(126,140,"P",colors.ink,"middle",20)+circ(435,155,5,colors.ink)+
+        l(435,149,435,104,colors.muted,1,"3 3")+box(422,77,26,26,"#142d38",colors.muted,5)+t(435,96,"Q",colors.ink,"middle",20);
+    }),
+    conceptFlux:fig("磁通量對時間圖：由（0 秒，0 Wb）至（2 秒，0.030 Wb），到 3 秒維持 0.030 Wb，最後降至（4 秒，0 Wb）。各點間為直線。",()=>chart({
+      xMax:4,yMax:.04,xLabel:"t（s）",yLabel:"Φ（Wb）",
+      xTicks:[[0,"0"],[1,"1"],[2,"2"],[3,"3"],[4,"4"]],
+      yTicks:[[0,"0"],[.01,"0.010"],[.02,"0.020"],[.03,"0.030"],[.04,"0.040"]],
+      series:[{points:[[0,0],[2,.03],[3,.03],[4,0]],color:colors.teal,marks:true}]
+    }).s),
+    conceptAC:fig("電流對時間圖：甲在正電流區呈固定水平線；乙呈正弦曲線，在正電流與負電流間來回振盪。",()=>{
+      const {s}=chart({xMax:2,yMin:-1.2,yMax:1.2,xLabel:"時間 t",yLabel:"電流 I",
+        xTicks:[[0,"0"],[1,"T"],[2,"2T"]],yTicks:[[0,"0"]],
+        series:[{points:[[0,.69],[2,.69]],color:colors.teal},{points:sample(120,u=>[2*u,Math.sin(2*tau*u)]),color:colors.amber,dashed:true}]});
+      return s+t(381,33,"實線：甲",colors.teal)+t(475,33,"虛線：乙",colors.amber);
+    }),
     examPotential:fig("電位對位置圖：A（0 cm，10 V），B（2 cm，6 V），C（4 cm，2 V），三點在同一直線。",()=>{
       const {s,x,y}=chart({xMax:5,yMax:12,xLabel:"x（cm）",yLabel:"V（V）",xTicks:[[0,"0"],[1,"1"],[2,"2"],[3,"3"],[4,"4"],[5,"5"]],yTicks:[[0,"0"],[2,"2"],[4,"4"],[6,"6"],[8,"8"],[10,"10"],[12,"12"]],series:[{points:[[0,10],[2,6],[4,2]],color:colors.teal,marks:true}]});
       return s+[[0,10,"A"],[2,6,"B"],[4,2,"C"]].map(([a,b,label])=>t(x(a)+11,y(b)-9,label,colors.ink)).join("");
