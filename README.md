@@ -7,10 +7,20 @@
 - **課程導讀**：12 節的目標、課本小標題、公式條件、例題與自我檢核。章末另有等電位線、電流天平、認識電磁波的探究導讀。
 - **逐概念練習**：30 個概念，每個各有兩題、共 60 題。可在該節概念下展開作答，也可從「觀念練習」按章節挑選。點選後立即看解析，答對紀錄只存在目前瀏覽器。
 - **電磁實驗室**：12 個 SVG 互動模擬；可調變因、即時讀值與重置。帶電質點、發電機與電磁波可播放、暫停或直接拖動進度。
+- **三維工作臺**：4 組、17 種情境。可拖曳轉向、切換俯視／側視、用鍵盤方向鍵旋轉。課程導讀和原有實驗都連到對應工作臺。
 - **逐章練習卷**：每卷 12 題、100 分（單選 40、多選 20、三題題組 24、手寫 16）。多選每題恰有 2 或 3 個正確選項，整題全對才給分。手寫含繪圖、填充或計算，依所附規準自評。
 - **教師用資料**：逐題有課本小標題、課綱對照、Bloom 層次與適用的第五學習階段探究能力；空白卷和解答可分開列印。段考範本、上次試題分析及額外繪圖規格未提供，本站採自訂題卷格式與程式繪製的向量圖。
 
 來源為全華課本第 1–3 章、[108 自然科學領域課綱](https://stv.naer.edu.tw/data/course_outline/pta_18538_240851_60502.pdf)（加深加廣選修，印刷頁 42–43、47–48、195–196）與 Krathwohl 的修訂版 Bloom 分類等附件。教材、題目與圖為重新編寫；原始附件不隨網站發布。實驗是高中課程模型，各頁標示模型的適用條件或示意比例。
+
+| 三維工作臺 | 可比較的情境 |
+| --- | --- |
+| [必歐－沙伐定律](https://arpowchao.github.io/physics-iv/#labs/biot) | 單一電流元、有限直線、雙平行導線、圓線圈、有限螺線管。移動 P、逐段看 ΔB，讀取 B 的三個分量。 |
+| [電位與等電位](https://arpowchao.github.io/physics-iv/#labs/potential-map) | 點電荷、平行板、帶電導體球。看切片、沿 x 的 V(x)，記錄起點 A 後比較靜電力作功。 |
+| [磁力與電動機](https://arpowchao.github.io/physics-iv/#labs/magnetic-force) | 粒子軌跡、單一直導線、平行導線、線圈力矩與換向器。 |
+| [電磁感應](https://arpowchao.github.io/physics-iv/#labs/induction) | 滑棒、線圈進出場、磁棒、旋轉線圈、固定線圈改變 B；拖時間同步看 Φ、ε、I。 |
+
+物理模型以全華課本為課程範圍，並對照 OpenStax 的 [必歐－沙伐定律](https://openstax.org/books/university-physics-volume-2/pages/12-1-the-biot-savart-law)及[動生電動勢](https://openstax.org/books/university-physics-volume-2/pages/13-3-motional-emf)。模擬在三維座標計算，再以可旋轉的正射投影顯示，不依賴 WebGL。有限導線省略外部回路，螺線管以同軸圓圈近似；畫面向量箭長不作量尺，量值以數字讀數為準。
 
 ## 在本機使用
 
@@ -28,6 +38,8 @@ python -m http.server 8000
 | `data/concept-practice.js` | 各節的逐概念練習、Bloom 標記與解析 |
 | `data/exams.js` | 三卷原創試題、詳解、配分與題目分類 |
 | `assets/labs.js` | 互動模型、讀值、示意圖與題圖 |
+| `assets/physics-models.js` | 三維向量、電位、磁力與感應的數值模型 |
+| `assets/workbenches.js`、`assets/workbench-ui.js` | 工作臺情境、三維投影、圖表、相機與時間控制 |
 | `assets/site.js` | 網頁導覽、實驗控制、練習與列印 |
 | `assets/site.css` | 響應式排版與 A4 列印樣式 |
 | `assets/learning-layout.css` | 沿用光學站的學習首頁、側欄、導讀與檢核樣式 |
@@ -40,4 +52,6 @@ GitHub Pages 以 `main` 分支根目錄發布。練習卷與互動實驗可用 `
 
 ```sh
 python scripts/check_site.py http://localhost:8000/
+python scripts/check_workbenches.py http://localhost:8000/
+node scripts/check_physics_models.js
 ```

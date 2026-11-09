@@ -1,0 +1,135 @@
+"""Browser checks for advanced physics workbenches and their responsive controls."""
+import argparse
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+
+
+def run(base, out):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1440, "height": 960})
+        errors = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
+
+        def go(route):
+            page.goto(f"{base.rstrip('/')}/#{route}")
+            page.wait_for_function("(r)=>document.querySelector('main').dataset.route===r", arg=route)
+
+        def read(key):
+            return page.locator(f'[data-reading="{key}"]')
+
+        def val(k, v):
+            page.locator(f"#bench-{k}").fill(str(v))
+
+        def expect(key, text):
+            page.wait_for_function(
+                "([k,s])=>document.querySelector('[data-reading='+k+']')?.textContent.includes(s)", arg=[key, text]
+            )
+
+        go("labs")
+        assert page.locator(".bench-index .lab-card").count() == 4
+        modes = page.evaluate("EM.workbenches.flatMap(b=>b.modes.map(m=>['labs/'+b.id+'/'+m.id,m.controls]))")
+        assert len(modes) == 17
+        for route, controls in modes:
+            go(route)
+            assert page.locator(".bench-modes [aria-current]").count() == 1
+            assert page.locator("#bench-plot svg").count() == 1
+            assert page.locator(".bench-readouts dd").count() >= 3
+            assert page.locator(".bench-inputs [data-param]").count() == len(controls)
+            assert not page.locator(".bench-shell").evaluate("(e)=>/NaN|Infinity/.test(e.innerHTML)")
+
+        go("labs/biot/element")
+        plot = page.locator("#bench-plot svg")
+        before = plot.inner_html()
+        box = plot.bounding_box()
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.down()
+        page.mouse.move(box["x"] + box["width"] / 2 + 76, box["y"] + box["height"] / 2 + 42, steps=5)
+        page.mouse.up()
+        page.wait_for_function("(old)=>document.querySelector('#bench-plot svg').innerHTML!==old", arg=before)
+        reading = read("vector").inner_text()
+        page.get_by_role("button", name="俯視 XY").click()
+        page.wait_for_function("document.querySelector('[data-view=pitch]').value==='90'")
+        assert read("vector").inner_text() == reading
+        page.get_by_role("button", name="平行", exact=True).click()
+        expect("total", "0 μT")
+        page.get_by_role("button", name="垂直", exact=True).click()
+        expect("total", "0.313 μT")
+        go("labs/biot/pair")
+        page.locator("#bench-relative").select_option("1")
+        expect("total", "0 μT")
+
+        go("labs/potential-map/charges")
+        page.get_by_role("button", name="等量異號中點").click()
+        expect("potential", "0 V")
+        assert read("field").inner_text() != "0 N/C"
+        page.locator("#bench-record").click()
+        expect("work", "0 nJ")
+        val("x", 4)
+        page.wait_for_function("!document.querySelector('[data-reading=work]').textContent.startsWith('0 nJ')")
+        assert page.locator("#bench-graph svg").count() == 1
+
+        go("labs/magnetic-force/parallel")
+        expect("relation", "相吸")
+        val("i2", -4)
+        expect("relation", "相斥")
+        go("labs/magnetic-force/particle")
+        page.get_by_role("button", name="平行：直線").click()
+        expect("radius", "直線")
+        expect("force", "0 μN")
+        page.get_by_role("button", name="垂直：圓周").click()
+        expect("period", "0 cm")
+        play = page.locator("#bench-play")
+        phase = page.locator("#bench-phase").input_value()
+        play.click()
+        page.wait_for_function("(v)=>document.querySelector('#bench-phase').value!==v", arg=phase)
+        play.click()
+        assert play.get_attribute("aria-pressed") == "false"
+
+        go("labs/induction/slide")
+        emf = read("emf").inner_text()
+        assert read("power").inner_text() == read("work").inner_text()
+        page.locator("#bench-closed").select_option("0")
+        expect("current", "0 A")
+        assert read("emf").inner_text() == emf
+        expect("power", "0 μW")
+        go("labs/induction/enter")
+        page.get_by_role("button", name="全在場內").click()
+        expect("emf", "0 V")
+        assert read("flux").inner_text() != "0 Wb"
+        graph = page.locator("#bench-graph")
+        size = graph.bounding_box()
+        graph.click(position={"x": size["width"] * .78, "y": size["height"] * .4})
+        page.wait_for_function("document.querySelector('#bench-phase').value!=='50'")
+        assert not errors, errors
+
+        for width in [320, 390, 768, 1024, 1440]:
+            page.set_viewport_size({"width": width, "height": 960})
+            for route in ["labs", "labs/biot/element", "labs/potential-map/charges", "labs/magnetic-force/motor", "labs/induction/magnet"]:
+                go(route)
+                assert page.evaluate("document.documentElement.scrollWidth === innerWidth"), (width, route)
+                assert page.locator(".bench-inputs .control:visible, .bench-readouts dd:visible, .bench-note:visible").evaluate_all(
+                    "(es)=>es.every(e=>e.clientWidth>=60&&e.scrollWidth<=e.clientWidth+1&&getComputedStyle(e).writingMode==='horizontal-tb')"
+                ), (width, route)
+                if out and width in (390, 1440) and route != "labs":
+                    page.locator("#bench-reset").click()
+                    page.wait_for_function("document.querySelector('#bench-notice').textContent.includes('已恢復')")
+                    page.wait_for_function("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
+                    page.evaluate("window.scrollTo(0,0)")
+                    page.screenshot(path=out / f"{width}-{route.replace('/', '-')}.png")
+                    if width == 390 and route == "labs/induction/magnet":
+                        page.locator("#bench-graph").screenshot(path=out / "390-induction-graph.png")
+        assert not errors, errors
+        browser.close()
+    print("Verified 17 workbench modes, 3D drag, plane presets, coordinates, graph scrubbing, and mobile reflow.")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("url")
+    parser.add_argument("--screenshots", type=Path)
+    args = parser.parse_args()
+    if args.screenshots:
+        args.screenshots.mkdir(parents=True, exist_ok=True)
+    run(args.url, args.screenshots)

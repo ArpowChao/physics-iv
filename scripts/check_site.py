@@ -46,7 +46,7 @@ def run(base, out):
         unique_stems = set()
         for sid, lid, topic_count, groups in sections:
             go(f"course/{sid}")
-            assert page.locator(".observe-card a").get_attribute("href") == f"#labs/{lid}"
+            assert page.locator(f'.observe-card a[href="#labs/{lid}"]').count() == 1
             assert page.locator("#sidebar .nav-item-node[aria-current=page]").get_attribute("href") == f"#course/{sid}"
             assert page.locator(".concept-card").count() == len(groups) == topic_count
             for i, group in enumerate(groups):
