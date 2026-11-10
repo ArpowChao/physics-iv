@@ -1,6 +1,7 @@
 (() => {
   const P=EMPhysics, {sum,sub,mul,dot,cross,length,unit,clamp,rad,TAU,sample,ring,zero}=P;
   const C={ink:"#17343e",muted:"#526d76",grid:"#d3e3e5",teal:"#136d60",blue:"#245aa4",amber:"#975215",violet:"#783ea0",red:"#aa3545",white:"#f4fafb"};
+  const darkColors=new Map([[C.ink,"#ddf8ff"],[C.muted,"#9bbbc9"],[C.grid,"#2b485c"],[C.teal,"#7de2ce"],[C.blue,"#8cbdfb"],[C.amber,"#ffcb83"],[C.violet,"#d5b8ff"],[C.red,"#fda9a8"]]);
   const fmt=(x,d=2)=>Number.isFinite(x)?(Math.abs(x)<.5*10**-d?0:x).toLocaleString("en-US",{maximumFractionDigits:d}):"—";
   const vec=(x,d=2)=>"("+x.map(v=>fmt(v,d)).join(", ")+")";
   const mag=(x,u,d=2)=>fmt(length(x),d)+" "+u;
@@ -35,10 +36,15 @@
     const up=plane?planePoint(axes,0,1):[Math.sin(yaw)*Math.sin(pitch),Math.cos(yaw)*Math.sin(pitch),Math.cos(pitch)];
     const toward=cross(right,up);
     const proj=point=>[W/2+scale*dot(point,right),H/2-scale*dot(point,up)];
-    let out="", tags=[], probes=[];
-    const draw=(nodes,c,w,d)=>{out+=path(nodes.map(proj),c,w,d);};
-    const polygon=(nodes,fill,opacity=.17)=>{out+=`<polygon points="${nodes.map(x=>proj(x).join(",")).join(" ")}" fill="${fill}" opacity="${opacity}"/>`;};
-    const arrow=(a,b,c,w=2.3,tag)=>{
+    const theme=camera.theme||"lab", tags=[], probes=[];
+    const art=EM.makeWorkbenchArt({width:W,height:H,theme,project:proj,scale,toward,append:markup=>{out+=markup;}});
+    let out=art.backdrop();
+    const color=c=>art.dark?(darkColors.get(c)||c):c;
+    const draw=(nodes,c,w,d)=>{out+=path(nodes.map(proj),color(c),w,d);};
+    const polygon=(nodes,fill,opacity=.17)=>{out+=`<polygon points="${nodes.map(x=>proj(x).join(",")).join(" ")}" fill="${color(fill)}" opacity="${opacity}"/>`;};
+    const arrow=(a,b,c,w=2.3,tag,always=false)=>{
+      if(!camera.analysis&&!always)return;
+      c=color(c);
       const start=proj(a),end=proj(b);
       const delta=sub(b,a), normal=dot(delta,toward);
       if(length(sub(end,start))<2){
@@ -48,28 +54,29 @@
         out+=arrow2(start,end,c,w);
         if(plane&&tag&&w>=1.8&&Math.abs(normal)>length(delta)*.04)normalGlyph(start[0]-9,start[1]+9,c,normal>0);
       }
-      if(tag)tags.push([end,tag,c]);
+      if(tag&&(camera.labels||always))tags.push([end,tag,c]);
     };
     function normalGlyph(x,y,c,front){
       out+=`<circle cx="${x}" cy="${y}" r="6" fill="${C.white}" stroke="${c}" stroke-width="1.8" data-normal="${front?"out":"in"}"/>`;
       out+=front?`<circle cx="${x}" cy="${y}" r="2" fill="${c}"/>`:
         path([[x-2.7,y-2.7],[x+2.7,y+2.7]],c,1.4)+path([[x+2.7,y-2.7],[x-2.7,y+2.7]],c,1.4);
     }
-    function mark(v,color,tag,r=4){
+    function mark(v,c,tag,r=4){
       const [x,y]=proj(v);
-      out+=`<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="${C.white}" stroke-width="1.3"/>`;
-      if(tag)tags.push([[x,y],tag,color]);
+      out+=`<circle cx="${x}" cy="${y}" r="${r}" fill="${color(c)}" stroke="${C.white}" stroke-width="1.3"/>`;
+      if(tag&&camera.labels)tags.push([[x,y],tag,color(c)]);
     }
     function probe(v,tag="P"){
-      mark(v,C.ink,tag,5);
       const [x,y]=proj(v);
+      art.orb(v,5.7/scale,"steel");
+      if(tag&&camera.labels)tags.push([[x,y],tag,color(C.ink)]);
       probes.push(`<circle cx="${x}" cy="${y}" r="15" fill="transparent" data-probe="true"/>`);
     }
     function charge(v,positive){
-      const color=positive?C.red:C.blue, [x,y]=proj(v);
-      out+=`<circle cx="${x}" cy="${y}" r="8" fill="${color}" stroke="${C.white}" stroke-width="1.3"/><path d="M${x-3.5} ${y}h7${positive?` M${x} ${y-3.5}v7`:""}" stroke="white" stroke-width="1.5"/>`;
+      const [x,y]=proj(v);
+      art.orb(v,10/scale,positive?"red":"blue");
+      out+=`<path d="M${x-4} ${y}h8${positive?` M${x} ${y-4}v8`:""}" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>`;
     }
-    const disk=(v,r,color,opacity=1)=>{const [x,y]=proj(v);out+=`<circle cx="${x}" cy="${y}" r="${r*scale}" fill="${color}" opacity="${opacity}"/>`;};
     const g=extent*.85;
     if(grid&&camera.grid!==false){
       for(let i=-4;i<=4;i++){
@@ -80,14 +87,13 @@
     }
     if(grid&&camera.axes!==false){
       const activeAxes=plane?axes:[0,1,2];
-      activeAxes.forEach(axis=>arrow(zero,zero.map((_,i)=>i===axis?g:0),C.muted,1.1,"xyz"[axis]));
+      activeAxes.forEach(axis=>arrow(zero,zero.map((_,i)=>i===axis?g:0),C.muted,1.1,camera.labels?"xyz"[axis]:"",true));
     }
-    return {draw,polygon,arrow,dot:mark,probe,charge,disk,finish(){
+    return {...art,draw,polygon,arrow,dot:mark,probe,charge,finish(){
       // Keep vector tags readable and inside the viewport; place overlapping labels on nearby rows.
       const used=[];
       const labels=tags.map(([[x,y],text,color])=>{
         if(x<0||y<0||x>W||y>H)return "";
-        if(camera.labels===false)return "";
         const w=Math.max(17,10+Array.from(text).length*10), px=clamp(x+6,2,W-w-2);
         let py=clamp(y-12,12,H-10);
         for(let i=0;i<6&&used.some(([a,b,c])=>px<c+2&&px+w>a-2&&Math.abs(py-b)<16);i++)py=clamp(py+(py>H-26?-19:18),12,H-10);
@@ -95,7 +101,7 @@
         return `<text x="${px+5}" y="${py+1}" class="bench-plot-label" font-size="15" fill="${color}">${txt(text)}</text>`;
       }).join("");
       const view=plane?camera.plane.toUpperCase()+" 平面投影":"3D 空間";
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" data-projection="${camera.plane||"3d"}" data-right="${right}" data-up="${up}" data-scale="${scale}" role="img" aria-label="${txt(view+"・"+label)}">${out}${labels}${probes.join("")}</svg>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" data-theme="${theme}" data-projection="${camera.plane||"3d"}" data-right="${right}" data-up="${up}" data-scale="${scale}" role="img" aria-label="${txt(view+"・"+label)}">${out}${labels}${probes.join("")}</svg>`;
     }};
   }
   function chart(xmax,series,at,xlabel="時間 t（s）",xmin=0){
@@ -125,7 +131,7 @@
   const I=ctl("i","電流 I",-8,8,.5,4,"A");
   const probe=ctl("probe","選取電流元位置",0,100,1,52,"%");
   const radius=ctl("radius","線圈半徑 R",4,15,.5,9,"cm");
-  const pointArrow=(s,a,v,size,c,tag,w=2.4)=>{if(length(v)>1e-9)s.arrow(a,sum(a,mul(unit(v),size)),c,w,tag);};
+  const pointArrow=(s,a,v,size,c,tag,w=2.4,always=false)=>{if(length(v)>1e-9)s.arrow(a,sum(a,mul(unit(v),size)),c,w,tag,always);};
   const sceneOut=(s,rows,legend,note,graph="")=>({diagram:s.finish(),rows,legend,note,graph});
   const biotModes=[
     {id:"element",title:"單一電流元",controls:[I,ctl("dl","電流元長 Δℓ",.5,5,.5,2,"cm"),ctl("theta","Δℓ 與 +z 夾角",0,180,5,90,"°"),ctl("phi","Δℓ 方位角",0,360,5,0,"°"),...xyz(5,12,8)],
@@ -144,10 +150,16 @@
   function drawCompass(p,camera){
     const s=scene(camera,29,"長直導線、地磁與指南針偏轉");
     const point=[p.distance,0,0], wire=[0,20*p.i/p.distance,0], earth=[p.earth,0,0], total=sum(wire,earth);
-    s.draw([[0,0,-20],[0,0,20]],C.muted,2.6);
+    s.tube([[0,0,-23],[0,0,23]],.85);
     if(p.i)pointArrow(s,[0,0,-7],[0,0,p.i],14,C.amber,"I");
-    s.draw(ring(Math.min(p.distance+2,24)),C.grid,1.4,"5 3");
-    s.dot(point,C.ink,"P",4);
+    const dial=ring(4.8,0,48).slice(0,-1).map(v=>sum(point,v));
+    s.slab(dial,[0,0,.7],"steel");
+    s.polygon(dial.map(v=>sum(v,[0,0,.38])),"#f8f6e9",1);
+    const pivot=sum(point,[0,0,.43]), axis=length(total)?unit(total):[1,0,0], wing=[-axis[1],axis[0],0];
+    const needleBase=[sum(pivot,mul(wing,.92)),sub(pivot,mul(wing,.92))];
+    s.polygon([...needleBase,sum(pivot,mul(axis,4.1))],C.red,length(total)?1:.34);
+    s.polygon([...needleBase,sub(pivot,mul(axis,4.1))],C.blue,length(total)?1:.34);
+    s.dot(pivot,C.muted,"",2.4);
     pointArrow(s,point,earth,9,C.blue,"地磁");
     pointArrow(s,point,wire,9,C.violet,"導線磁場");
     pointArrow(s,point,total,13,C.teal,"N",2.9);
@@ -164,26 +176,27 @@
     draw(mode,p,camera){
       if(mode==="compass")return drawCompass(p,camera);
       const m=P.biot(mode,p), e=m.selected, single=mode==="element";
-      const extent=single?Math.max(23,e.d+8):mode==="straight"?Math.max(31,p.half):32;
+      const extent=single?Math.max(23,e.d+8):mode==="straight"?Math.max(24,p.half):
+        mode==="solenoid"?Math.max(21,p.coil*.62,p.radius*1.4):24;
       const s=scene(camera,extent,"電流分布與觀測點 P 的磁場向量");
       const direction=unit(e.dl), planeEdge=single?mul(direction,Math.min(18,e.d)):e.dl;
-      s.polygon([e.m,sum(e.m,planeEdge),m.point],C.amber,single ? .16 : .07);
+      if(camera.analysis)s.polygon([e.m,sum(e.m,planeEdge),m.point],C.amber,single ? .16 : .07);
       if(mode==="element"){
         const wire=mul(direction,Math.min(28,extent));
-        s.draw([sub(e.m,wire),sum(e.m,wire)],C.teal,5);
-        s.draw([e.a,e.b],C.amber,7);
+        s.tube([sub(e.m,wire),sum(e.m,wire)],.92);
       }else{
-        m.paths.forEach(({nodes,sign})=>{
-          s.draw(nodes,C.muted,2.2);
+        [...m.paths].sort((a,b)=>s.depth(a.nodes[0])-s.depth(b.nodes[0])).forEach(({nodes,sign})=>{
+          s.tube(nodes,mode==="solenoid"?.29:.62);
           const k=Math.floor(nodes.length*.3), a=nodes[k], b=nodes[Math.min(k+3,nodes.length-1)];
           const dir=mul(unit(sub(b,a)),Math.sign(p.i)*sign);
           if(p.i)pointArrow(s,a,dir,3.9,C.amber,"I",2.5);
         });
       }
+      s.tube([e.a,e.b],single?1.08:.84,"brass");
       s.probe(m.point); s.arrow(e.m,m.point,C.blue,1.9,"r");
       const plane=planes[camera.plane];
       const trueAngle=!plane||(Math.abs(dot(e.dl,plane.normal))<1e-8&&Math.abs(dot(e.rv,plane.normal))<1e-8);
-      if(trueAngle&&m.angle>1&&m.angle<179){
+      if(camera.analysis&&trueAngle&&m.angle>1&&m.angle<179){
         const a=unit(e.dl), b=unit(sub(unit(e.rv),mul(a,dot(a,unit(e.rv))))), arc=Math.min(5.8,e.d*.33), angle=rad(m.angle);
         const offset=u=>sum(e.m,sum(mul(a,arc*Math.cos(u*angle)),mul(b,arc*Math.sin(u*angle))));
         s.draw(sample(28,offset),C.muted,1.35,"3 2");s.dot(offset(.55),C.muted,"θ",2);
@@ -216,9 +229,9 @@
     const sources=[[-p.spacing/2,p.q],[p.spacing/2,p.q2]].filter(([,q])=>q);
     const fieldAt=position=>P.electro("charges",p,position)?.e||zero;
     if(camera.plane==="yz"){
-      for(let y=-18;y<=18;y+=9)for(let z=-18;z<=18;z+=9){
+      for(const y of [-13,0,13])for(const z of [-13,0,13]){
         const origin=[0,y,z], field=fieldAt(origin);
-        pointArrow(s,origin,field,3.5,C.teal);
+        pointArrow(s,origin,field,3.5,C.teal,undefined,2,true);
       }
     }else{
       // Axial symmetry keeps each traced line in a meridional plane containing both charges.
@@ -242,7 +255,7 @@
             if(target){joinedPositive=target[1]>0;break;}
           }
           if(sign<0&&joinedPositive)continue;
-          s.draw(points,C.teal,1.3);
+          s.draw(points,"url(#art-field)",1.65);
           if(points.length>8){
             const i=Math.min(30,Math.floor(points.length*.64));
             const a=points[i-3],b=points[i];
@@ -255,8 +268,8 @@
     s.probe(point,p.vectors?"P":"");
     const force=at?mul(at.e,p.test):null; // nC × N/C gives nN.
     if(at){
-      if(p.vectors===1)pointArrow(s,point,at.e,12,C.blue,"E");
-      if(p.vectors===2)pointArrow(s,point,force,12,C.violet,"F");
+      if(p.vectors===1)pointArrow(s,point,at.e,12,C.blue,"E",2.4,true);
+      if(p.vectors===2)pointArrow(s,point,force,12,C.violet,"F",2.4,true);
     }
     const rows=[item("field","P 點電場 |E|",at?mag(at.e,"N/C",1):"—"),
       item("vector","電場 E（x, y, z）",at?vec(at.e,1)+" N/C":"—"),
@@ -310,17 +323,17 @@
         if(cuts.length===4)s.draw(cuts.slice(2),color,1.1);
       }
       if(mode==="charges"){
-        if(p.q)s.dot([-p.spacing/2,0,0],p.q>0?C.red:C.blue,"Q₁",7);
-        if(p.q2)s.dot([p.spacing/2,0,0],p.q2>0?C.red:C.blue,"Q₂",7);
+        if(p.q)s.charge([-p.spacing/2,0,0],p.q>0);
+        if(p.q2)s.charge([p.spacing/2,0,0],p.q2>0);
       }else if(mode==="plates"){
-        for(const x of [-p.gap/2,p.gap/2]){
+        for(const x of [-p.gap/2,p.gap/2].sort((a,b)=>s.depth([a,0,0])-s.depth([b,0,0]))){
           const nodes=[[x,-26,-26],[x,26,-26],[x,26,26],[x,-26,26]];
-          s.polygon(nodes,x<0?C.amber:C.blue,.15);s.draw([...nodes,nodes[0]],x<0?C.amber:C.blue,1.5);
-          s.dot([x,-25,24],x<0?C.amber:C.blue,x<0?"＋":"−",4);
+          s.slab(nodes,[1.45,0,0],x<0?"steel":"copper",.62);
+          if(camera.labels)s.dot([x,-25,24],x<0?C.blue:C.amber,x<0?"−":"＋",4);
         }
       }else{
-        const outline=ring(p.radius);
-        s.draw(outline,C.muted,1.4);s.draw(outline.map(([x,y])=>[x,0,y]),C.muted,1.2,"5 3");s.draw(outline.map(([x,y])=>[0,x,y]),C.muted,1.2,"5 3");
+        s.orb(zero,p.radius,p.q>0?"copper":p.q<0?"blue":"steel");
+        if(length(point)<p.radius)s.draw(ring(p.radius),C.muted,1.2,"4 4");
       }
       if(state.a)s.dot(state.a,C.violet,"A",4.5);
       s.probe(point);
@@ -359,7 +372,8 @@
         const s=scene(camera,27,"兩平行載流導線的電流、磁場與作用力");
         const half=p.spacing/2;
         for(const [y,i,name] of [[-half,p.i1,"甲"],[half,p.i2,"乙"]]){
-          s.draw([[-24,y,0],[24,y,0]],C.muted,3);s.dot([-22,y,0],C.ink,name);
+          s.tube([[-24,y,0],[24,y,0]],.85,name==="甲"?"copper":"brass");
+          if(camera.labels)s.dot([-22,y,0],C.ink,name);
           if(i)pointArrow(s,[-12,y,0],[i,0,0],10,C.amber,"I");
         }
         if(p.i1)pointArrow(s,[5,half,0],[0,0,p.i1],10,C.blue,"B甲");
@@ -377,8 +391,10 @@
         const center=mul(trace.at(-1),.5), translated=trace.map(a=>sub(a,center)), t=span*p.phase/100;
         const current=m.at(t), point=sub(mul(current.x,100),center);
         const scale=Math.max(20,...translated.map(a=>length(a)))*1.15, s=scene(camera,scale,"帶電質點的三維軌跡、速度和磁力");
-        s.draw(translated,C.teal,2.6);
-        s.dot(translated[0],C.muted,"起點");s.dot(point,C.ink,"P",6);
+        const past=sample(Math.max(2,Math.round(220*p.phase/100)),u=>sub(mul(m.at(u*t).x,100),center));
+        s.trail(translated,"#7dabbf",.38,1.45);
+        s.trail(past,"#83e8ef",.96,2.35);
+        s.orb(point,scale*.028,p.q>0?"spark":"particle",true);
         pointArrow(s,point,current.v,scale*.36,C.amber,"v");pointArrow(s,point,current.f,scale*.31,C.violet,"F");
         pointArrow(s,zero,m.b,scale*.52,C.blue,"B");
         return sceneOut(s,[item("t","時間 t",fmt(t,4)+" s"),item("force","磁力量值 |F|",fmt(length(current.f)*1e6,3)+" μN"),
@@ -391,15 +407,25 @@
       pointArrow(s,[-13,-12,0],m.b,18,C.blue,"B");
       if(mode==="wire"){
         const h=mul(m.dl,50), a=mul(h,-1);
-        s.draw([a,h],C.muted,4);
+        s.tube([a,h],1.05);
         if(p.i)s.arrow(mul(h,-Math.sign(p.i)*.68),mul(h,Math.sign(p.i)*.85),C.amber,3,"I");
         pointArrow(s,zero,m.f,13,C.violet,"F",3);
         return sceneOut(s,[item("force","磁力量值 |F|",mag(m.f,"N",3)),item("vector","磁力 F（x, y, z）",vec(m.f,3)+" N"),item("theta","實際電流與 B 夾角",p.i?fmt(p.i>0?p.theta:180-p.theta)+"°":"—")],
           [[C.amber,"電流 I"],[C.blue,"磁場 B"],[C.violet,"磁力 F"]],"均勻磁場；磁力垂直於電流與磁場。箭長只表示方向，實際量值見讀數。");
       }
       const vertices=m.vertices.map(a=>mul(a,100));
-      s.polygon(vertices,C.teal,.14);s.draw([...vertices,vertices[0]],C.teal,2.5);
-      s.draw([[-24,0,0],[24,0,0]],C.muted,1.2,"4 4");
+      s.tube([[-24,0,0],[24,0,0]],.85,"steel");
+      const theta=rad(p.theta);
+      for(const offset of [.12,Math.PI+.12]){
+        const sleeve=sample(32,u=>{
+          const a=theta+offset+u*(Math.PI-.24);
+          return [15,1.9*Math.cos(a),1.9*Math.sin(a)];
+        });
+        s.slab([[15,0,0],...sleeve],[4.2,0,0],"brass");
+      }
+      s.slab([[13,-1.2,-4],[17,-1.2,-4],[17,-1.2,-1.6],[13,-1.2,-1.6]],[0,2.4,0],"steel");
+      s.tube([...vertices,vertices[0]],.76);
+      if(camera.analysis)s.polygon(vertices,C.teal,.14);
       vertices.forEach((a,i)=>{
         const b=vertices[(i+1)%4], middle=mul(sum(a,b),.5);
         pointArrow(s,middle,mul(sub(b,a),Math.sign(m.i)),4,C.amber);
@@ -420,13 +446,17 @@
   const circuit=[pick("closed","迴路狀態",[[1,"閉合"],[0,"開路"]],1),ctl("resistance","電阻 R",1,20,.5,4,"Ω"),phase];
   function drawTransformer(p,camera){
     const m=P.transformer(p), u=p.phase/100, at=m.at(u), s=scene(camera,26,"鐵芯、原副線圈與磁通量方向");
-    const frame=[[-14,0,-13],[14,0,-13],[14,0,13],[-14,0,13],[-14,0,-13]];
-    for(const y of [-2,2])s.draw(frame.map(([x,,z])=>[x,y,z]),"#8ba0a8",8);
+    for(const z of [-13,13]){
+      s.slab([[-16.5,-3.1,z-2.5],[16.5,-3.1,z-2.5],[16.5,-3.1,z+2.5],[-16.5,-3.1,z+2.5]],[0,6.2,0],"steel");
+    }
     for(const [x,turns,color] of [[-14,p.primary,C.amber],[14,p.secondary,C.blue]]){
       const coils=Math.max(2,Math.round(turns/45));
-      const winding=sample(160,t=>[x+4.2*Math.cos(TAU*t*coils),4.2*Math.sin(TAU*t*coils),-8+16*t]);
-      s.draw(winding,color,2);
-      s.dot([x,0,17],color,x<0?"原線圈":"副線圈");
+      const wire=t=>[x+5.2*Math.cos(TAU*t*coils),5.2*Math.sin(TAU*t*coils),-10+20*t];
+      const strands=sample(coils*24,wire);
+      s.splitTube(strands,.49,x<0?"copper":"brass",v=>s.depth([v[0]-x,v[1],0])>=0,()=>{
+        s.slab([[x-2.5,-3,-13],[x+2.5,-3,-13],[x+2.5,-3,13],[x-2.5,-3,13]],[0,6,0],"steel");
+      });
+      if(camera.labels)s.dot([x,0,17],color,x<0?"原線圈":"副線圈");
     }
     pointArrow(s,[-8,0,13],[at.flux,0,0],15,C.teal,"Φ",2.8);
     const series=sample(180,u=>[u,m.at(u)]);
@@ -460,32 +490,40 @@
     draw(mode,p,camera){
       if(mode==="transformer")return drawTransformer(p,camera);
       const t=p.duration*p.phase/100,m=P.induction(mode,p,t);
-      const half=p.size/2, extent=mode==="slide"?Math.max(28,(p.speed*p.duration+.035)*100*.65+7):29;
+      const half=p.size/2, extent=mode==="slide"?Math.max(17,(p.speed*p.duration+.035)*100*.65+5):
+        mode==="magnet"?Math.max(15,Math.abs(m.x)*100+6):mode==="enter"?27:Math.max(14,half*1.75);
       const s=scene(camera,extent,"感應裝置、外加磁場與迴路的三維圖");
-      let corners, center=[0,0,0];
+      let corners;
       const rect=(x,y,a,b)=>[[x,y,0],[a,y,0],[a,b,0],[x,b,0]];
       if(mode==="enter"){
         const left=m.x*100-half,right=m.x*100+half;
-        s.polygon(rect(-13,-22,13,22),C.blue,.13);s.draw([...rect(-13,-22,13,22),[-13,-22,0]],C.blue,1.5,"5 4");
+        s.slab(rect(-13,-22,13,22).map(v=>sum(v,[0,0,-.8])),[0,0,.6],"glass",.5);
         if(m.overlap>0)s.polygon(rect(Math.max(left,-13),-half,Math.min(right,13),half),C.teal,.35);
         corners=rect(left,-half,right,half);
         pointArrow(s,[m.x*100,-half-4,0],[1,0,0],8,C.amber,"v");
         for(const x of [-10,0,10])pointArrow(s,[x,14,0],[0,0,1],8,C.blue,x===0?"B":"");
       }else if(mode==="slide"){
         const span=(.035+p.speed*p.duration)*100, left=-span/2, right=left+100*m.x, railEnd=span/2+3;
-        s.draw([[left,-half,0],[railEnd,-half,0]],C.muted,2);s.draw([[left,half,0],[railEnd,half,0]],C.muted,2);
-        corners=rect(left,-half,right,half);s.polygon(corners,C.teal,.26);
+        s.tube([[left,-half,0],[railEnd,-half,0]],.55,"steel");s.tube([[left,half,0],[railEnd,half,0]],.55,"steel");
+        corners=rect(left,-half,right,half);
+        if(camera.analysis)s.polygon(corners,C.teal,.26);
         pointArrow(s,[right,0,0],[1,0,0],7,C.amber,"v");
         if(m.force)pointArrow(s,[right,-half,0],[-1,0,0],7,C.violet,"F");
         pointArrow(s,[left,half+4,0],[0,0,1],9,C.blue,"B");
       }else if(mode==="magnet"){
-        const coil=ring(half);
-        s.draw(p.closed?coil:coil.slice(5,-4),C.teal,2.7);
-        if(!p.closed)s.dot([half,0,0],C.red,"開路",4);
-        const z=m.x*100, a=[0,0,z-4], b=[0,0,z+4];
-        s.draw([a,[0,0,z]],p.pole>0?C.blue:C.red,10);
-        s.draw([[0,0,z],b],p.pole>0?C.red:C.blue,10);
-        s.dot(b,p.pole>0?C.red:C.blue,p.pole>0?"N":"S",3.6);
+        const z=m.x*100, b=[0,0,z+5.6];
+        const windings=Math.min(5,Math.max(2,Math.round(p.turns/8)));
+        const coil=sample(windings*56,u=>{
+          const theta=(p.closed?0:.28)+(TAU*windings-(p.closed?0:.56))*u;
+          return [half*Math.cos(theta),half*Math.sin(theta),1.8*(u-.5)];
+        });
+        s.splitTube(coil,.38,"copper",point=>s.depth([point[0],point[1],0])>=0,()=>{
+          const poleFaces=[[-2.8,p.pole>0?"blue":"red"],[2.8,p.pole>0?"red":"blue"]];
+          for(const [offset,material] of poleFaces.sort(([a],[b])=>s.depth([0,0,a])-s.depth([0,0,b]))){
+            s.slab(ring(half*.48,z+offset,32).slice(0,-1),[0,0,5.6],material);
+          }
+        });
+        if(camera.labels)s.dot(b,p.pole>0?C.red:C.blue,p.pole>0?"N":"S",3.6);
         pointArrow(s,[4,0,z],[0,0,1],9,C.amber,"v");
         if(m.i) {
           const theta=Math.PI*.25, mid=[half*Math.cos(theta),half*Math.sin(theta),0];
@@ -493,15 +531,20 @@
         }
       }else{
         corners=rect(-half,-half,half,half).map(([x,y])=>[x,y*Math.cos(m.angle),y*Math.sin(m.angle)]);
-        s.polygon(corners,C.teal,.15);
-        pointArrow(s,center,[0,-Math.sin(m.angle),Math.cos(m.angle)],10,C.teal,"n");
+        if(mode==="rotate")s.tube([[-17,0,0],[17,0,0]],.71,"steel");
+        if(mode==="vary"&&Math.abs(m.b)>1e-6){
+          s.polygon(rect(-half-2,-half-2,half+2,half+2),m.b>0?C.blue:C.violet,.32*Math.abs(m.b));
+        }
+        if(camera.analysis)s.polygon(corners,C.teal,.15);
+        pointArrow(s,zero,[0,-Math.sin(m.angle),Math.cos(m.angle)],10,C.teal,"n");
         if(m.b)pointArrow(s,[-12,12,0],[0,0,m.b],10,C.blue,"B");
       }
       if(corners){
-        s.draw([...corners,...(p.closed?[corners[0]]:[])],C.teal,2.7);
+        s.tube([...corners,...(p.closed?[corners[0]]:[])],.65);
         if(!p.closed){
           const mid=mul(sum(corners[0],corners[3]),.5), d=mul(sub(corners[0],corners[3]),.11);
-          s.draw([corners[3],sub(mid,d)],C.teal,2.7);s.draw([sum(mid,d),corners[0]],C.teal,2.7);s.dot(mid,C.red,"開路",4);
+          s.tube([corners[3],sub(mid,d)],.65);s.tube([sum(mid,d),corners[0]],.65);
+          if(camera.labels)s.dot(mid,C.red,"開路",4);
         }
         if(m.i) {
           const mid=mul(sum(corners[0],corners[1]),.5);
@@ -532,9 +575,9 @@
         task:"拖動進度穿過四個加速間隙，對照動能圖。找出質子在間隙與金屬漂移管內的差異。"},
       {id:"cyclotron",title:"迴旋加速器",controls:[protonEnergy,gapVoltage,ctl("b","磁場 B（沿 +z）",.3,1.2,.05,.65,"T"),ctl("crossings","穿越間隙次數",3,12,1,8,"次"),phase],animate:true,
         task:"在 XY 平面看 D 形電極內的半圓，再轉到 3D 確認 B 垂直軌道。提高電壓時比較半徑與迴旋週期。"},
-      {id:"aurora",title:"極光與磁鏡",controls:[ctl("shell","磁力線赤道半徑 L",1.5,3.5,.1,2.5,"Rₑ"),ctl("pitch","赤道速度與磁場夾角（銳角）",0,85,1,12,"°"),
+      {id:"aurora",title:"極光與磁鏡",camera:{yaw:-25,pitch:25,zoom:1},controls:[ctl("shell","磁力線赤道半徑 L",1.5,3.5,.1,2.5,"Rₑ"),ctl("pitch","赤道速度與磁場夾角（銳角）",0,85,1,8,"°"),
         ctl("longitude","磁經度",0,360,5,0,"°"),pick("hemisphere","粒子先朝向",[[1,"北半球"],[-1,"南半球"]],1),
-        ctl("phase","沿路徑播放進度",0,100,1,65,"%")],animate:true,
+        ctl("phase","沿路徑播放進度",0,100,1,100,"%")],animate:true,
         task:"比較小、大入射夾角。切到 XZ 看極區附近，再旋轉 3D 觀察粒子沿哪條磁力線接近高層大氣。"}
     ],
     draw(mode,p,camera){
@@ -544,12 +587,14 @@
         const sections=[-26,...m.gaps,26];
         for(let i=0;i<sections.length-1;i++){
           const a=sections[i]+(i?m.halfWidth:0), b=sections[i+1]-(i<4?m.halfWidth:0);
-          for(const x of [a,b])s.draw(crossSection.map(([u,v])=>[x,u,v]),C.blue,1.45);
-          for(const [u,v] of [[-3.2,0],[3.2,0],[0,3.2],[0,-3.2]])s.draw([[a,u,v],[b,u,v]],C.blue,1.3);
+          const wall=crossSection.slice(0,-1).map(([u,v])=>[(a+b)/2,u,v]);
+          s.slab(wall,[b-a,0,0],"glass",.24);
+          for(const x of [a,b])s.tube(crossSection.map(([u,v])=>[x,u,v]),.34,"steel");
         }
         m.gaps.forEach(x=>pointArrow(s,[x-1,-6,0],[1,0,0],2.5,C.amber,"E",2.15));
-        s.draw([[-27,0,0],[27,0,0]],C.teal,1.7,"5 4");
-        s.dot([position,0,0],C.violet,"p⁺",5);
+        s.trail([[-26,0,0],[26,0,0]],"#9ebcca",.35,1.35);
+        s.trail([[-26,0,0],[position,0,0]],"#93e8ff",.89,2);
+        s.orb([position,0,0],.94,m.active?"spark":"particle",true);
         const values=sample(260,u=>{const x=-26+52*u;return [x,P.linearAcceleration(p,x).energy];});
         const graph=chart(26,[{name:"質子動能 K",unit:"eV",values,color:C.teal,absolute:true}],position,"x（cm）",-26);
         return sceneOut(s,[item("position","質子位置",fmt(position,1)+" cm"),item("energy","質子動能 K",fmt(m.energy,1)+" eV"),
@@ -562,15 +607,16 @@
         const tracks=m.arcs.map(a=>sample(48,a.point));
         const outer=Math.max(...tracks.flat().map(length))*1.13;
         const s=scene(camera,Math.max(outer*1.15,1),"D 形電極、磁場與質子的分段半圓");
-        for(const sign of [-1,1]){
-          const border=sample(70,u=>[sign*outer*Math.sin(Math.PI*u),outer*Math.cos(Math.PI*u),0]);
-          s.polygon(border,sign>0?C.blue:C.teal,.13);
-          s.draw([...border,border[0]],C.blue,1.4);
-          s.dot([sign*.8*outer,0,0],C.blue,sign>0?"D₁":"D₂",3.8);
+        for(const sign of [-1,1].sort((a,b)=>s.depth([a,0,0])-s.depth([b,0,0]))){
+          const border=sample(64,u=>[sign*outer*(.025+Math.sin(Math.PI*u)),outer*Math.cos(Math.PI*u),-outer*.15]);
+          const material=sign>0?"copper":"brass";
+          s.slab(border,[0,0,outer*.15],material);
+          s.tube([...border,border[0]].map(v=>sum(v,[0,0,outer*.075])),outer*.012,material);
+          if(camera.labels)s.dot([sign*.8*outer,0,0],C.blue,sign>0?"D₁":"D₂",3.8);
         }
-        s.draw([[0,-outer,0],[0,outer,0]],C.amber,2,"5 3");
-        tracks.forEach((points,i)=>s.draw(points,i===k?C.violet:C.teal,i===k?2.7:1.45,i>k?"4 3":""));
-        s.dot(point,C.violet,"p⁺",5);
+        tracks.forEach((points,i)=>s.trail(points,i<k?"#b5f4f7":"#eee2d0",i<k?.73:.33,i<k?1.8:1.05));
+        s.trail(sample(54,u=>arc.point(u*(turn-k))),"#c0faff",1,2.5);
+        s.orb(point,outer*.036,"spark",true);
         pointArrow(s,[-outer*.76,-outer*.65,0],[0,0,1],outer*.48,C.blue,"B");
         const steps=m.arcs.flatMap((a,i)=>[[i,a.energy],[i+1,a.energy]]);
         const graph=chart(p.crossings,[{name:"質子動能 K",unit:"eV",values:steps,color:C.teal,absolute:true}],turn,"經過的半圈數");
@@ -581,41 +627,55 @@
       }
       const m=P.aurora(p), u=p.phase/100, returning=!m.reachesAtmosphere&&u>.5;
       const fraction=m.reachesAtmosphere?u:1-Math.abs(2*u-1), latitude=p.hemisphere*m.end*fraction;
-      const s=scene(camera,p.shell*1.07,"地球、偶極磁力線和電子沿場運動",false);
+      const extent=camera.analysis?p.shell*1.05:Math.max(1.42,p.shell*.68);
+      const s=scene(camera,extent,"地球、高層大氣與電子路徑",false);
       const longitude=rad(p.longitude);
-      for(const phi of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
+      if(camera.analysis)for(const phi of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
         for(const L of [1.5,2.2,3.0].filter(x=>x<=p.shell+.65)){
           const limit=Math.acos(Math.sqrt(m.atmosphere/L));
           s.draw(sample(80,u=>m.point((2*u-1)*limit,L,phi)),C.grid,1.2);
         }
       }
-      s.disk(zero,m.atmosphere,"#65bad0",.72);
-      s.disk(zero,1,"#cce5ef");
-      s.draw(ring(1.004),C.blue,1,"4 3");
-      s.dot([0,0,1],C.blue,"N",3);s.dot([0,0,-1],C.blue,"S",3);
-      s.draw(sample(125,u=>m.point((2*u-1)*m.limit)),C.blue,1.4,"5 4");
+      s.earth();
+      const visibleRuns=(nodes,draw)=>{
+        let run=[];
+        for(const v of nodes){
+          if(s.frontOfEarth(v))run.push(v);
+          else if(run.length){draw(run);run=[];}
+        }
+        if(run.length)draw(run);
+      };
+      if(camera.analysis){
+        visibleRuns(sample(125,u=>m.point((2*u-1)*m.limit)),nodes=>s.draw(nodes,C.blue,1.4,"5 4"));
+        for(const sign of [-1,1]){
+          const pole=[0,0,sign];
+          if(s.frontOfEarth(pole))s.dot(pole,C.blue,sign>0?"N":"S",3);
+        }
+      }
       const pathPoint=t=>{
         const lambda=p.hemisphere*m.end*t, guide=m.point(lambda);
-        const localB=m.ratio(lambda), width=.28*Math.sin(rad(p.pitch))/Math.sqrt(localB)*Math.sin(Math.PI*t)**.5;
+        const localB=m.ratio(lambda), width=.21*Math.sin(rad(p.pitch))/Math.sqrt(localB)*Math.sin(Math.PI*t)**.5;
         const tangent=unit(sub(m.point(lambda+.0001),m.point(lambda-.0001)));
         const normal=[-Math.sin(longitude),Math.cos(longitude),0];
         const side=cross(tangent,normal), angle=TAU*8*t;
         return sum(guide,sum(mul(normal,width*Math.cos(angle)),mul(side,width*Math.sin(angle))));
       };
-      s.draw(sample(185,pathPoint),C.teal,2.45);
+      visibleRuns(sample(185,pathPoint),nodes=>s.trail(nodes,"#7bb8d2",camera.analysis?.67:.32,1.15));
+      const tail=clamp(fraction+(returning?.3:-.3),0,1);
+      visibleRuns(sample(72,t=>pathPoint(tail+(fraction-tail)*t)),
+        nodes=>s.trail(nodes,"#b3eaff",u===1&&m.reachesAtmosphere?.44:.77,1.45));
       const endpoint=m.point(p.hemisphere*m.end);
-      if(m.reachesAtmosphere){
-        s.disk(endpoint,.085,"#73d995",.52);
-        s.dot(endpoint,C.teal,"高層大氣",4.2);
-      }else s.dot(endpoint,C.red,"磁鏡點",4.2);
-      s.dot(pathPoint(fraction),C.violet,"e⁻",5.1);
+      if(m.reachesAtmosphere&&u===1)s.curtain(p.hemisphere*m.end,longitude,1);
+      if(camera.analysis&&s.frontOfEarth(endpoint))s.dot(endpoint,m.reachesAtmosphere?C.teal:C.red,m.reachesAtmosphere?"高層大氣":"磁鏡點",3.3);
+      const electron=pathPoint(fraction);
+      if(s.frontOfEarth(electron))s.orb(electron,.023,"particle",u<1||!m.reachesAtmosphere);
       const localPitch=Math.asin(Math.min(1,Math.sin(rad(p.pitch))*Math.sqrt(m.ratio(latitude))));
       const altitude=(length(m.point(latitude))-1)*m.earthKm;
       return sceneOut(s,[item("fate","此粒子的結果",m.reachesAtmosphere?"可進入高層大氣":returning?"已在磁鏡點折返":"會在磁鏡點折返"),
         item("altitude","導引中心高度",fmt(altitude,0)+" km"),item("cone","赤道損失錐半角",fmt(m.lossCone*180/Math.PI,1)+"°"),
         item("pitch","當地速度與磁場夾角（銳角）",fmt(localPitch*180/Math.PI,1)+"°")],
         [[C.blue,"地球／選取磁力線"],[C.teal,"電子路徑示意"],[C.violet,"電子"]],
-        "理想偶極地磁場，依磁鏡近似估計是否抵達 110 km 高度。電子與高層大氣碰撞可使氣體發光。圖中迴旋半徑放大，播放進度沿路徑計。");
+        "理想偶極地磁場，依磁鏡近似估計是否抵達 110 km 高度。發光幕示意許多粒子激發高層大氣，顏色與形狀作為示意。圖中迴旋半徑與發光高度放大，播放進度沿路徑計。");
     }
   };
   const wave={
@@ -628,14 +688,14 @@
       const m=P.emWave(p), s=scene(camera,123,"沿 +x 傳播的電場與磁場"), point=[p.x,0,0];
       if(camera.plane!=="yz"){
         for(const [v,color] of [[m.electric,C.teal],[m.magnetic,C.blue]]){
-          s.draw(sample(240,u=>{const x=220*u-110;return sum([x,0,0],mul(v,33*m.at(x)));}),color,2.2);
+          s.trail(sample(240,u=>{const x=220*u-110;return sum([x,0,0],mul(v,33*m.at(x)));}),color===C.teal?"#75e3ca":"#99baff",.93,2.15);
         }
       }
-      s.dot(point,C.ink,"P",5);
+      s.orb(point,3.4,"steel");
       const phaseAtP=m.at(p.x);
       if(Math.abs(phaseAtP)>1e-7){
-        s.arrow(point,sum(point,mul(m.electric,33*phaseAtP)),C.teal,2.6,"E");
-        s.arrow(point,sum(point,mul(m.magnetic,33*phaseAtP)),C.blue,2.6,"B");
+        s.arrow(point,sum(point,mul(m.electric,33*phaseAtP)),C.teal,2.6,"E",camera.plane==="yz");
+        s.arrow(point,sum(point,mul(m.magnetic,33*phaseAtP)),C.blue,2.6,"B",camera.plane==="yz");
       }
       pointArrow(s,[-98,-25,-20],[1,0,0],31,C.amber,"傳播",2.3);
       return sceneOut(s,[item("lambda","真空波長 λ",fmt(m.wavelength,2)+" cm"),item("speed","傳播速率","2.998 × 10⁸ m/s"),

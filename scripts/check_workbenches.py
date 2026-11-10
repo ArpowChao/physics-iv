@@ -38,8 +38,13 @@ def run(base, out):
             assert page.locator(".bench-readouts dd").count() >= 3
             assert page.locator(".bench-inputs [data-param]").count() == len(controls)
             assert not page.locator(".bench-shell").evaluate("(e)=>/NaN|Infinity/.test(e.innerHTML)")
+            assert not page.get_by_role("checkbox", name="分析標註").is_checked()
+            assert page.locator("#bench-plot svg text, #bench-plot [data-normal]").count() == 0
             assert page.locator("#bench-plot circle").evaluate_all(
-                "(circles)=>circles.every(el=>CSS.supports('color',el.getAttribute('fill')))"
+                r"""(circles)=>circles.every(el=>{
+                    const fill=el.getAttribute('fill'), gradient=/^url\(#([\w-]+)\)$/.exec(fill);
+                    return gradient?!!el.ownerSVGElement.querySelector('#'+gradient[1]):fill==='none'||CSS.supports('color',fill);
+                })"""
             ), route
             readings = page.locator("#bench-readouts").inner_text()
             page.get_by_role("button", name="2D 平面").click()
@@ -72,7 +77,9 @@ def run(base, out):
         expect("theta", "90°")
         page.get_by_role("button", name="2D 平面").click()
         page.get_by_role("button", name="XY", exact=True).click()
+        page.get_by_role("checkbox", name="分析標註").check()
         page.locator("#bench-plot [data-projection=xy] [data-normal=out]").first.wait_for()
+        page.get_by_role("checkbox", name="分析標註").uncheck()
         page.get_by_role("button", name="3D 空間").click()
         go("labs/biot/pair")
         page.locator("#bench-relative").select_option("1")
@@ -131,11 +138,15 @@ def run(base, out):
         expect("crossing", "8")
         expect("energy", "3,280 eV")
         go("labs/particle-apps/aurora")
+        assert page.locator("#bench-plot svg[data-theme=space] polygon[fill='url(#art-curtain)']").count() > 0
         page.get_by_role("button", name="小夾角：進入大氣").click()
         expect("fate", "可進入高層大氣")
         expect("altitude", "110 km")
+        val("phase", 99)
+        page.locator("#bench-plot polygon[fill='url(#art-curtain)']").first.wait_for(state="detached")
         page.get_by_role("button", name="大夾角：磁鏡折返").click()
         expect("fate", "已在磁鏡點折返")
+        assert page.locator("#bench-plot polygon[fill='url(#art-curtain)']").count() == 0
 
         go("labs/magnetic-force/parallel")
         expect("relation", "相吸")

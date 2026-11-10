@@ -19,6 +19,7 @@
 .bench-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem 1rem; margin-bottom: .55rem; }
 .bench-view-controls .button { min-height: 44px; padding: .4rem .8rem; }
 .bench-view-controls [data-plane] { min-width: 44px; }
+.bench-view-controls #bench-play { margin-left: auto; min-width: 4.6rem; }
 .bench-view-hint { margin: .35rem 0 0; font-size: .76rem; }
 .bench-plot { overflow: hidden; background: #f4fafb; border: 1px solid #d4e4e7; border-radius: 12px; cursor: grab; touch-action: none; }
 .bench-plot:active { cursor: grabbing; }
@@ -27,6 +28,8 @@
 .bench-shell [hidden] { display: none; }
 .bench-plot svg, .bench-graphs svg { display: block; width: 100%; height: auto; font-family: var(--body); }
 .bench-plot-label { paint-order: stroke; stroke: #f4fafb; stroke-width: 2.5px; stroke-linejoin: round; }
+.bench-plot svg:not([data-theme="lab"]) .bench-plot-label { stroke: #102335; }
+.bench-scene-caption { margin: .65rem 0 0; color: var(--muted); font-size: .86rem; line-height: 1.6; }
 .bench-display-options { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; margin-top: .55rem; color: var(--muted); font-size: .8rem; }
 .bench-display-options label { cursor: pointer; }
 .bench-display-options input { accent-color: var(--accent); vertical-align: middle; }

@@ -3,6 +3,33 @@
   const memory=new Map();
   const defaultPlanes={"particle-apps/aurora":"xz","particle-apps/linear":"xz","magnetic-force/particle":"xz","magnetic-force/motor":"yz",
     "induction/magnet":"xz","induction/rotate":"yz","induction/transformer":"xz"};
+  const beamModes=new Set(["particle","linear","cyclotron","plane-wave"]);
+  const sceneCaptions={
+    element:"銅線上的金色短節是選取的電流元。拖曳銀色測點，改變量測位置。",
+    straight:"金色短節標出目前選取的電流元。拖曳銀色測點，看看磁場讀值怎麼變。",
+    compass:"紅色針尖指北。反轉電流，觀察磁針往哪一側偏。",
+    pair:"金色短節標出選取的電流元。把銀色測點拖到兩線之間，比較磁場。",
+    loop:"拖曳銀色測點，從線圈中心移到軸上和線圈外。",
+    solenoid:"旋轉銅線圈，或把銀色測點拖出管口，比較磁場讀值。",
+    "field-lines":"紅、藍球分別代表正、負電荷。曲線表示電場走向，銀色球是可拖曳的測點。",
+    charges:"曲線連接電位相同的位置。拖曳銀色測點會移動取樣切片。",
+    plates:"銅色板接較高電位。把銀色測點沿板面拖動，再試著從一塊板移向另一塊。",
+    sphere:"拖曳銀色測點從導體球內移到球外，比較電位與電場。",
+    particle:"亮線是粒子已走過的路徑。播放後，試著改變入射角和電荷正負。",
+    wire:"改變銅導線的方向，再開啟分析標註查看磁力。",
+    parallel:"反轉其中一條導線的電流，在讀值區比較互吸與互斥。",
+    motor:"銅線圈繞鋼軸轉動。開啟換向器，比較轉過半圈前後的力矩。",
+    slide:"銅棒沿兩條導軌滑動。播放並比較閉合和開路時的電流。",
+    enter:"淡藍色區域標出有磁場的範圍。播放觀察線圈進入、停留在場內和離開。",
+    magnet:"紅色端是 N 極，藍色端是 S 極。播放觀察磁棒穿過銅線圈。",
+    rotate:"銅線圈繞鋼軸轉動。暫停在不同角度，對照磁通量與感應電動勢。",
+    vary:"銅線圈固定在原位。底色深淺表示外加磁場強弱，藍色與紫色分別代表正向和反向。",
+    transformer:"深銅色為原線圈，淺金色為副線圈。兩組繞線共用鋼製鐵芯。",
+    linear:"兩段漂移管之間是加速間隙。質子通過間隙時變成暖色，對照動能讀值。",
+    cyclotron:"質子每次穿過中央間隙，就進入半徑更大的半圓。亮線表示已走過的路徑。",
+    aurora:"播放追蹤電子。到達高層大氣時會顯示極光幕，磁鏡折返時則可看到電子沿原路返回。",
+    "plane-wave":"綠色曲線表示電場，藍色曲線表示磁場。播放觀察波往前傳播。"
+  };
   const url=(bench,mode)=>"#labs/"+bench.id+(mode?"/"+mode:"");
   const shortcuts={
     "biot/element":[["平行", {x:16,y:0,z:0,theta:90,phi:0}],["垂直",{x:0,y:16,z:0,theta:90,phi:0}],["離開 xy 平面",{x:5,y:12,z:8,theta:90,phi:0}]],
@@ -21,9 +48,10 @@
   EM.mountWorkbench=(root,bench,id)=>{
     const mode=bench.modes.find(m=>m.id===id)||bench.modes[0], key=bench.id+"/"+mode.id;
     const defaults=Object.fromEntries(mode.controls.map(c=>[c.key,c.value]));
-    const sparseGrid=bench.id==="biot"||mode.id==="field-lines";
-    const saved=memory.get(key)||{p:{...defaults},camera:{...bench.camera},state:{},
-      view:{dimension:"3d",plane:defaultPlanes[key]||"xy",grid:!sparseGrid,labels:true}};
+    const defaultCamera=mode.camera||bench.camera;
+    const theme=mode.id==="aurora"?"space":beamModes.has(mode.id)?"beam":"lab";
+    const saved=memory.get(key)||{p:{...defaults},camera:{...defaultCamera},state:{},
+      view:{dimension:"3d",plane:defaultPlanes[key]||"xy",grid:false,labels:false}};
     memory.set(key,saved);
     const {p,camera,state,view}=saved, canRecord=bench.id==="potential-map"&&mode.id!=="field-lines";
     const pointAxes=["x","y","z"];
@@ -48,16 +76,17 @@
               <button class="button" data-plane="xz" type="button" aria-pressed="false">XZ</button>
               <button class="button" data-plane="yz" type="button" aria-pressed="false">YZ</button>
             </div>
+            ${playKey?'<button type="button" id="bench-play" class="button primary" aria-pressed="false">播放</button>':""}
           </div>
           <div id="bench-plot" class="bench-plot" tabindex="0" role="group" aria-label="三維視窗。拖曳或用方向鍵旋轉；也可用下方滑桿。"></div>
+          <p class="bench-scene-caption">${sceneCaptions[mode.id]}</p>
           <p class="small muted bench-view-hint" id="bench-plane-hint" hidden></p>
           <div class="bench-display-options">
-            ${hasProbe?'<span>拖曳測點 P</span>':""}
             <label><input type="checkbox" data-overlay="grid" ${view.grid?"checked":""}> 座標網格</label>
-            <label><input type="checkbox" data-overlay="labels" ${view.labels?"checked":""}> 圖面標註</label>
+            <label><input type="checkbox" data-overlay="labels" ${view.labels?"checked":""}> 分析標註</label>
           </div>
           <div class="bench-camera" aria-label="三維視角">
-            <span>拖曳旋轉・⊙ 出畫面／⊗ 入畫面</span>
+            <span>拖曳旋轉</span>
             <div class="action-row"><button class="button" data-camera="xy" type="button">俯視 XY</button><button class="button" data-camera="xz" type="button">側視 XZ</button><button class="button" data-camera="default" type="button">預設視角</button></div>
           </div>
           <details class="bench-camera-settings"><summary>精調視角與縮放</summary><div class="bench-inputs">
@@ -68,7 +97,6 @@
         <div class="bench-side">
           <section class="bench-panel bench-measurements">
             <h2>即時讀值</h2>
-            ${bench.formula&&mode.id==="element"?`<p class="formula bench-equation">${bench.formula}</p>`:""}
             <dl class="readouts bench-readouts" id="bench-readouts"></dl>
           </section>
           <section class="bench-panel">
@@ -79,7 +107,6 @@
           `<input type="range" id="bench-${c.key}" data-param="${c.key}" min="${c.min}" max="${c.max}" step="${c.step}">`}
         </label>`).join("")}</div>
         <div class="action-row bench-actions">
-          ${playKey?'<button type="button" id="bench-play" class="button primary" aria-pressed="false">播放</button>':""}
           ${canRecord?'<button type="button" id="bench-record" class="button primary">記錄 P 為起點 A</button><button type="button" id="bench-clear" class="button">清除 A</button>':""}
           <button type="button" class="button" id="bench-reset">恢復實驗初始值</button>
           ${scenes.map(([name],i)=>`<button type="button" class="button" data-preset="${i}">${name}</button>`).join("")}
@@ -87,6 +114,7 @@
           </section>
           <details class="bench-panel bench-guide"><summary>觀察提示與模型</summary>
             <p>${mode.task}</p>
+            ${bench.formula&&mode.id==="element"?`<p class="formula bench-equation">${bench.formula}</p>`:""}
         <p class="bench-note" id="bench-note"></p>
           </details>
         </div>
@@ -108,9 +136,6 @@
       find("#bench-planes").hidden=!flat;
       find(".bench-camera").hidden=flat;
       find(".bench-camera-settings").hidden=flat;
-      const hint=find("#bench-plane-hint");
-      hint.hidden=!flat;
-      if(flat)hint.textContent="⊙ 朝向觀察者・⊗ 背離觀察者";
       for(const button of root.querySelectorAll("[data-dimension],[data-plane]")){
         const active=button.dataset.dimension===view.dimension||button.dataset.plane===view.plane;
         button.setAttribute("aria-pressed",String(active));
@@ -131,12 +156,18 @@
     }
     function draw(){
       controls();
-      const overlay={grid:view.grid,labels:view.labels,axes:mode.id!=="field-lines"||view.grid};
+      const flat=view.dimension==="2d";
+      const overlay={theme,grid:view.grid,labels:view.labels,analysis:view.labels,axes:view.grid||view.labels};
       const projection=view.dimension==="2d"?{...overlay,plane:view.plane,zoom:1}:{...camera,...overlay};
       const r=bench.draw(mode.id,p,projection,state);
       plot.innerHTML=r.diagram;
       readouts.innerHTML=r.rows.map(([k,label,value])=>`<div><dt>${label}</dt><dd data-reading="${k}">${value}</dd></div>`).join("");
-      find(".bench-legend").innerHTML=r.legend.map(([c,name])=>`<li><span aria-hidden="true" style="--swatch:${c}"></span><span>${name}</span></li>`).join("");
+      const legend=find(".bench-legend");
+      legend.hidden=!view.labels&&mode.id!=="field-lines";
+      legend.innerHTML=r.legend.map(([c,name])=>`<li><span aria-hidden="true" style="--swatch:${c}"></span><span>${name}</span></li>`).join("");
+      const hint=find("#bench-plane-hint");
+      hint.hidden=!flat||!plot.querySelector("[data-normal]");
+      hint.textContent="⊙ 朝向觀察者・⊗ 背離觀察者";
       find("#bench-note").textContent=r.note;
       if(r.graph!==graph.innerHTML)graph.innerHTML=r.graph;
       graph.parentElement.hidden=!r.graph;
@@ -150,8 +181,10 @@
       if(loop){stop();return;}
       play.setAttribute("aria-pressed","true");play.textContent="暫停";
       const max=playKey==="theta"?360:100;
+      if(mode.id==="aurora"&&p[playKey]===max){p[playKey]=0;queue();}
       const tick=t=>{
-        if(!last||t-last>=46){p[playKey]=(p[playKey]+(max===360?3:1))%(max+1);last=t;queue();}
+        const interval=mode.id==="aurora"&&p[playKey]===max?850:46;
+        if(!last||t-last>=interval){p[playKey]=(p[playKey]+(max===360?3:1))%(max+1);last=t;queue();}
         loop=requestAnimationFrame(tick);
       };
       loop=requestAnimationFrame(tick);
@@ -172,7 +205,7 @@
     find(".bench-camera").addEventListener("click",e=>{
       const mode=e.target.closest("[data-camera]")?.dataset.camera;
       if(!mode)return;
-      Object.assign(camera,mode==="xy"?{yaw:0,pitch:90,zoom:1}:mode==="xz"?{yaw:0,pitch:0,zoom:1}:bench.camera);
+      Object.assign(camera,mode==="xy"?{yaw:0,pitch:90,zoom:1}:mode==="xz"?{yaw:0,pitch:0,zoom:1}:defaultCamera);
       queue();
     });
     find(".bench-view-controls").addEventListener("click",e=>{
@@ -231,7 +264,7 @@
       const b=e.target.closest("button");if(!b)return;
       const notice=find("#bench-notice");
       if(b.id==="bench-reset"){
-        stop();Object.assign(p,defaults);Object.assign(camera,bench.camera);delete state.a;notice.textContent="已恢復初始值。";queue();
+        stop();Object.assign(p,defaults);Object.assign(camera,defaultCamera);delete state.a;notice.textContent="已恢復初始值。";queue();
       }else if(b.dataset.preset!==undefined){
         stop();Object.assign(p,scenes[+b.dataset.preset][1]);notice.textContent="已套用："+scenes[+b.dataset.preset][0];queue();
       }else if(b.id==="bench-record"){
