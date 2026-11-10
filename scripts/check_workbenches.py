@@ -159,11 +159,28 @@ def run(base, out):
 
         go("labs/potential-map/field-lines", guided=True)
         page.locator("[data-case='0']").click()
+        page.get_by_role("button", name="2D 平面").click()
+        page.get_by_role("button", name="XY", exact=True).click()
+        page.locator("#bench-plot svg[data-projection=xy]").wait_for()
         facts = page.locator(".bench-electro-facts")
         page.wait_for_function("document.querySelector('.bench-electro-facts').textContent.includes('23.56')")
         assert all(text in facts.inner_text() for text in ["10 條","2 條","8 條"])
         key=page.locator("#bench-plot [data-field-key]")
         assert all(text in key.text_content() for text in ["Q₁ 10 條","相連 2 條","通往無窮遠 8 條","23.56"])
+        density = page.get_by_role("combobox", name="線條密度")
+        assert density.input_value() == "2"
+        for value, counts in [("1", ["Q₁ 5 條", "相連 1 條", "通往無窮遠 4 條"]),
+                              ("6", ["Q₁ 30 條", "相連 6 條", "通往無窮遠 24 條"])]:
+            density.select_option(value)
+            page.wait_for_function(
+                """([n,counts])=>counts.every(text=>document.querySelector('[data-field-key]').textContent.includes(text))
+                &&document.querySelectorAll('#bench-plot polyline[stroke="#b05219"][stroke-width="2.45"]').length===Number(n)""",
+                arg=[value, counts]
+            )
+            assert "23.56" in key.text_content()
+        assert page.locator('td[data-measure="joined-share"][data-evidence="0"]').inner_text() == "20%"
+        assert page.locator('td[data-measure="joined-share"][data-evidence="1"]').inner_text() == "100%"
+        density.select_option("2")
         page.get_by_role("button", name="遠場", exact=True).click()
         page.get_by_role("button",name="只看相連線").click()
         assert page.get_by_role("button", name="近場", exact=True).get_attribute("aria-pressed")=="true"
@@ -192,6 +209,8 @@ def run(base, out):
 
         go("labs/potential-map/sphere", guided=True)
         assert "12 條" in page.locator(".bench-electro-facts").inner_text()
+        page.get_by_role("combobox", name="線條密度").select_option("4")
+        page.wait_for_function("document.querySelector('.bench-electro-facts').textContent.includes('24 條')")
         go("labs/potential-map/cavity", guided=True)
         page.locator("[data-case='1']").click()
         page.wait_for_function("""document.querySelector('td[data-measure=field][data-evidence="1"]').textContent==='0 N/C'""")

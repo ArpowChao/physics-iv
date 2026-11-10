@@ -80,23 +80,24 @@
     }
     return {v,e};
   }
-  function electricPair(p){
+  const defaultLineDensity=2;
+  function electricPair(p,density=defaultLineDensity){
     const a=Math.sqrt(Math.abs(p.q)),b=Math.sqrt(Math.abs(p.q2)),half=p.spacing/2;
     const opposed=p.q*p.q2<0, net=p.q+p.q2;
     const x=!a||!b||(opposed&&a===b)?null:half*(opposed?(a+b)/(a-b):(a-b)/(a+b));
-    const joined=opposed?2*Math.min(Math.abs(p.q),Math.abs(p.q2)):0;
     const absQ=Math.abs(p.q), absQ2=Math.abs(p.q2);
+    const joined=opposed?density*Math.min(absQ,absQ2):0;
     const potentialZeroes=opposed?[half*(absQ-absQ2)/(absQ+absQ2),...(net?[half*(absQ+absQ2)/(absQ-absQ2)]:[])]:[];
-    return {x,all:!a&&!b,net,joined,counts:[2*absQ,2*absQ2],potentialZeroes};
+    return {x,all:!a&&!b,net,joined,distant:density*Math.abs(net),counts:[density*absQ,density*absQ2],potentialZeroes};
   }
-  function electricStreamlines(p,bound=110){
-    return axialStreamlines(pairSources(p),bound);
+  function electricStreamlines(p,bound=110,density=defaultLineDensity){
+    return axialStreamlines(pairSources(p),bound,density);
   }
-  function cavityStreamlines(p,bound){
+  function cavityStreamlines(p,bound,density=defaultLineDensity){
     const {inner,outer,inside,outside}=cavityGeometry(p);
-    return [...axialStreamlines(inside,bound,{radius:inner,enter:false}),...axialStreamlines(outside,bound,{radius:outer,enter:true})];
+    return [...axialStreamlines(inside,bound,density,{radius:inner,enter:false}),...axialStreamlines(outside,bound,density,{radius:outer,enter:true})];
   }
-  function axialStreamlines(sources,bound,boundary){
+  function axialStreamlines(sources,bound,density,boundary){
     const opposed=sources.length===2&&sources[0].q*sources[1].q<0;
     // For opposite charges all connecting lines can be traced from the larger charge.
     const origins=boundary?sources.slice(0,1):opposed?[sources.reduce((a,b)=>Math.abs(a.q)>=Math.abs(b.q)?a:b)]:sources;
@@ -112,8 +113,10 @@
     }
     const stream=(x,y)=>sources.reduce((flux,s)=>flux+s.q*(x-s.x)/Math.hypot(x-s.x,y),0);
     const paths=[];
+    const mirrored=density%2===0;
     for(const source of origins){
-      const other=sources.find(s=>s!==source), sign=Math.sign(source.q), count=Math.abs(source.q);
+      const other=sources.find(s=>s!==source), sign=Math.sign(source.q);
+      const count=Math.abs(source.q)*density/(mirrored?2:1);
       for(let i=0;i<count;i++){
         const cosine=1-2*(i+.5)/count;
         const level=source.q*cosine+(other?other.q*Math.sign(source.x-other.x):0);
@@ -157,7 +160,8 @@
             break;
           }
         }
-        paths.push({points,sign,source:source.x,end});
+        // Odd densities can leave an unpaired line. Alternate its side across successive flux bands.
+        paths.push({points,sign,source:source.x,end,sides:mirrored?[-1,1]:[i%2===0?1:-1]});
       }
     }
     return paths;
@@ -337,7 +341,7 @@
     const at=x=>Math.sin(TAU*(x/wavelength-p.phase/100));
     return {c,wavelength,electric,magnetic,at};
   }
-  const api={sum,mul,sub,dot,cross,length,unit,clamp,rad,TAU,zero,sample,direction,line,ring,biot,electro,electricPair,electricStreamlines,cavityGeometry,cavityStreamlines,magnetic,induction,magnetFlux,linearAcceleration,cyclotron,aurora,transformer,emWave};
+  const api={sum,mul,sub,dot,cross,length,unit,clamp,rad,TAU,zero,sample,direction,line,ring,biot,electro,defaultLineDensity,electricPair,electricStreamlines,cavityGeometry,cavityStreamlines,magnetic,induction,magnetFlux,linearAcceleration,cyclotron,aurora,transformer,emWave};
   globalThis.EMPhysics=api;
   if(typeof module!=="undefined")module.exports=api;
 })();

@@ -58,7 +58,7 @@
     const theme=mode.id==="aurora"?"space":beamModes.has(mode.id)?"beam":"lab";
     const saved=memory.get(key)||{p:{...defaults},camera:{...defaultCamera},state:{},
       view:{dimension:lesson.plane?"2d":"3d",plane:lesson.plane||defaultPlanes[key]||"xy",grid:false,labels:false,
-        electroDisplay:electroViews?.[0],electroRange:"near",electroDepth:"depth"},
+        electroDisplay:electroViews?.[0],electroRange:"near",electroDepth:"depth",electroDensity:EMPhysics.defaultLineDensity},
       activity:{free:false,caseIndex:0,prediction:null,explained:false,evidence:[null,null]}};
     memory.set(key,saved);
     const {camera,view,activity}=saved, canRecord=bench.id==="potential-map"&&mode.id!=="field-lines";
@@ -108,6 +108,9 @@
               <button type="button" class="button" data-electro-range="far" aria-pressed="false">遠場</button>
             </div>
             ${hasPair?'<button type="button" class="button bench-linked-only" aria-pressed="false">只看相連線</button>':""}
+            <label class="bench-density" hidden><span>線條密度</span><select>
+              ${[1,2,3,4,5,6].map(n=>`<option value="${n}">${n} 條／nC</option>`).join("")}
+            </select></label>
             <label class="bench-depth" hidden><span>3D 景深</span><select>
               <option value="depth">前後分層</option><option value="front">只看前側</option><option value="section">單一參考切面</option>
             </select></label>
@@ -279,6 +282,9 @@
         depth.hidden=flat||view.electroDisplay!=="lines";
         find(".bench-face-view").hidden=depth.hidden;
         depth.querySelector("select").value=view.electroDepth;
+        const density=find(".bench-density");
+        density.hidden=view.electroDisplay!=="lines"||(flat&&view.plane==="yz"&&mode.id!=="sphere");
+        density.querySelector("select").value=view.electroDensity;
         plot.dataset.editable=String(activity.free&&hasProbe&&view.electroDisplay!=="surface"&&!profile);
         const linked=find(".bench-linked-only");
         if(linked){
@@ -317,7 +323,7 @@
       const overlay={theme,grid:view.grid,labels:view.labels,analysis:view.labels,axes:view.grid||view.labels,
         comparisonExtent:activity.free?undefined:lesson.extent,
         electroDisplay:profile?electroViews[0]:view.electroDisplay,electroRange:electroRange(),electroDepth:view.electroDepth,
-        electroLinkedOnly:view.electroLinkedOnly};
+        electroLinkedOnly:view.electroLinkedOnly,electroDensity:view.electroDensity};
       const projection=view.dimension==="2d"?{...overlay,plane:view.plane,zoom:1}:{...camera,...overlay};
       const r=bench.draw(mode.id,p,projection,activity.free?saved.state:{});
       plot.innerHTML=profile?r.graph:r.diagram;
@@ -415,6 +421,10 @@
     });
     find(".bench-depth select")?.addEventListener("change",e=>{
       view.electroDepth=e.target.value;
+      queue();
+    });
+    find(".bench-density select")?.addEventListener("change",e=>{
+      view.electroDensity=+e.target.value;
       queue();
     });
     find(".bench-camera").addEventListener("click",e=>{

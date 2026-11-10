@@ -111,7 +111,7 @@
         <text x="16" y="-38" fill="${C.ink}">Q₁ ${pair.counts[0]} 條　 Q₂ ${pair.counts[1]} 條</text>
         <text x="${W-16}" y="-38" text-anchor="end" fill="${C.violet}">${txt(pair.x===null?zeroLabel:"E = 0　"+zeroLabel)}</text>
         ${key(18,"相連 "+lineCount(pair.joined),linkedLine)}
-        ${key(216,distant+" "+lineCount(2*Math.abs(pair.net))+(camera.electroLinkedOnly?"（暫藏）":""),distantLine)}
+        ${key(216,distant+" "+lineCount(pair.distant)+(camera.electroLinkedOnly?"（暫藏）":""),distantLine)}
       </g>`;
     }
     const g=extent*.85;
@@ -321,7 +321,7 @@
     }else s.polygon(shell,"#6fa2b2",.43);
     s.draw(shell,"#28647c",1.45);
   }
-  function drawElectricLines(s,mode,p,camera,extent){
+  function drawElectricLines(s,mode,p,camera,extent,density){
     const cavity=mode==="cavity", sphere=mode==="sphere", pair=pairMode(mode);
     const shape=cavity?P.cavityGeometry(p):null;
     if(sphere)conductorSection(s,camera,p.radius);
@@ -336,7 +336,7 @@
     const main=camera.plane==="xz"?Math.PI/2:0, far=extent*3.5;
     const spatial=!camera.plane&&camera.electroDepth==="depth";
     if(sphere){
-      const count=2*Math.abs(p.q);
+      const count=density*Math.abs(p.q);
       for(let i=0;i<count;i++){
         const theta=TAU*(i+.5)/count, a=fieldPlane([Math.cos(theta),Math.sin(theta)],main);
         const rays=sample(24,u=>mul(a,p.radius+u*(far-p.radius)));
@@ -346,14 +346,14 @@
         drawStream(s,rays,camera,extent,Math.sign(p.q));
       }
     }else{
-      const key=[mode,p.q,p.q2,p.spacing,p.offset,far].join("/");
+      const key=[mode,p.q,p.q2,p.spacing,p.offset,far,density].join("/");
       if(streamlineCache?.key!==key){
-        streamlineCache={key,paths:cavity?P.cavityStreamlines(p,far):P.electricStreamlines(p,far)};
+        streamlineCache={key,paths:cavity?P.cavityStreamlines(p,far,density):P.electricStreamlines(p,far,density)};
       }
       const {paths}=streamlineCache;
-      const layer=(angle,guide,selected,color)=>selected.forEach(({points,sign},i)=>{
+      const layer=(angle,guide,selected,color)=>selected.forEach(({points,sign,sides},i)=>{
         if(guide&&i%Math.max(2,Math.ceil(selected.length/5))!==0)return;
-        for(const side of [-1,1]){
+        for(const side of sides){
           const trace=points.map(([x,y])=>fieldPlane([x,side*y],angle));
           drawStream(s,trace,camera,extent,sign,guide,color);
         }
@@ -467,7 +467,8 @@
     ].map(m=>({...m,controls:[...m.controls,pick("test","檢驗電荷 q",[[1,"+1 nC"],[-1,"−1 nC"],[2,"+2 nC"],[-2,"−2 nC"]],1)]})),
     draw(mode,p,camera,state){
       const point=[p.x,p.y,p.z], at=P.electro(mode,p,point), atA=state.a?P.electro(mode,p,state.a):null;
-      const pair=pairMode(mode)?P.electricPair(p):null;
+      const density=camera.electroDensity??P.defaultLineDensity;
+      const pair=pairMode(mode)?P.electricPair(p,density):null;
       const view=camera.electroDisplay||(mode==="field-lines"||mode==="sphere"||mode==="cavity"?"lines":mode==="charges"?"surface":"contours");
       const extent=mode==="plates"?32:electricExtent(mode,camera,pair);
       const s=scene(camera,extent,view==="surface"?"電位地形":view==="lines"?"電力線與電場":"等電位切片");
@@ -478,7 +479,7 @@
       const spacing=mode==="plates"?p.voltage/5:mode==="sphere"?Math.max(100,Math.abs(9000*p.q/p.radius)/5):
         Math.max(100,Math.round(Math.max(Math.abs(p.q),Math.abs(p.q2))*1.7)*100);
       if(view==="lines"){
-        drawElectricLines(s,mode,p,camera,extent);
+        drawElectricLines(s,mode,p,camera,extent,density);
       }else if(view==="surface"){
         terrain=potentialTerrain(s,mode,p,camera,extent);
         slice=terrain.slice;
@@ -549,27 +550,31 @@
       if(view==="contours")rows.push(item("levels","等電位線級距",fmt(spacing)+" V"));
       const facts=[];
       if(pair){
-        const boundary=2*Math.abs(pair.net);
         const zeroLabel=pair.all?"各處皆為零":pair.x===null?"無有限零點":"x = "+fmt(pair.x,2)+" cm";
         if(view==="lines"&&camera.plane!=="yz")s.fieldKey(pair,zeroLabel);
         rows.push(item("q1-lines","Q₁ 出入的線",lineCount(pair.counts[0])),item("q2-lines","Q₂ 出入的線",lineCount(pair.counts[1])),
           item("joined","連接兩電荷",lineCount(pair.joined)),item("null","電場零點",zeroLabel));
+        if(mode==="field-lines"){
+          const outgoing=density*(Math.max(0,p.q)+Math.max(0,p.q2));
+          rows.push(item("joined-share","正電荷出線的相連比例",outgoing?fmt(100*pair.joined/outgoing)+"%":"—"));
+        }
         if(view==="lines")facts.push(["Q₁",fmt(p.q)+" nC · "+lineCount(pair.counts[0])],["Q₂",fmt(p.q2)+" nC · "+lineCount(pair.counts[1])],
-          ["兩電荷相連",lineCount(pair.joined)],[pair.net<0?"從無窮遠進入":"通往無窮遠",lineCount(boundary)]);
+          ["兩電荷相連",lineCount(pair.joined)],[pair.net<0?"從無窮遠進入":"通往無窮遠",lineCount(pair.distant)]);
         facts.push(["E = 0",zeroLabel+(nullAt?" · V = "+fmt(nullAt.v,2)+" V":"")]);
         if(pair.potentialZeroes.length)facts.push(["軸上 V = 0",pair.potentialZeroes.map(x=>fmt(x,2)).join("、")+" cm"]);
       }else if(mode==="sphere"&&view==="lines"){
-        facts.push(["球面"+(p.q<0?"進線":"出線"),lineCount(2*Math.abs(p.q))],["金屬內","E = 0"]);
+        facts.push(["球面"+(p.q<0?"進線":"出線"),lineCount(density*Math.abs(p.q))],["金屬內","E = 0"]);
       }else if(mode==="cavity"&&view==="lines"){
-        facts.push(["腔內電荷與內壁相連",lineCount(2*Math.abs(p.q))],["外部電荷與外壁相連",lineCount(Math.abs(p.q2))],
-          [p.q2<0?"從無窮遠進入":"通往無窮遠",lineCount(Math.abs(p.q2))],["接地金屬","E = 0 · V = 0"]);
+        const outerLines=density*Math.abs(p.q2)/2;
+        facts.push(["腔內電荷與內壁相連",lineCount(density*Math.abs(p.q))],["外部電荷與外壁相連",lineCount(outerLines)],
+          [p.q2<0?"從無窮遠進入":"通往無窮遠",lineCount(outerLines)],["接地金屬","E = 0 · V = 0"]);
       }
       const model=mode==="plates"?"理想無限大平行板，負板為 0 V。":
         mode==="cavity"?"接地同心球殼的內半徑為 8 cm、外半徑為 13 cm，外部點電荷在 x = 26 cm。腔內、腔外分別用球面鏡像電荷計算。":
         "以無窮遠為 0 V。";
       let caption=view==="surface"?(camera.plane?"色階顯示電位 V。":"地形高度是電位 V。")+"紅正藍負，深色線標出零電位交界。切面 "+slice+"，顯示範圍 ±"+fmt(terrain.cap,0)+" V。":
         view==="lines"?(camera.plane==="yz"&&mode!=="sphere"?"YZ 顯示 x = 0 切片的局部電場。線數以含 x 軸的參考切面為準。":
-          "參考切面每 1 nC 畫 2 條線。"+(camera.plane?"":camera.electroDepth==="front"?"目前顯示朝向觀察者的前側。":
+          "參考切面每 1 nC 畫 "+density+" 條線。"+(camera.plane?"":camera.electroDepth==="front"?"目前顯示朝向觀察者的前側。":
             camera.electroDepth==="section"?"目前只顯示 XY 參考切面。":"深色為前側，淡線標出後側與輔助切面。")):
         "曲線連接等電位位置，切面 "+slice+"。"+(flatValue===undefined?"":"這一整片同為 "+fmt(flatValue)+" V。");
       if(nullAt&&!nullShown&&view!=="contours"){

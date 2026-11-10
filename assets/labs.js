@@ -65,7 +65,7 @@
       },[0,0]);
       let s=mesh()+'<defs><clipPath id="basic-field-frame"><rect x="24" y="34" width="512" height="258"/></clipPath></defs><g clip-path="url(#basic-field-frame)">';
       const lines=EMPhysics.electricStreamlines({q:6,q2:6*p.s,spacing:12});
-      for(const {points,sign} of lines)for(const side of [-1,1]){
+      for(const {points,sign,sides} of lines)for(const side of sides){
         const pts=points.map(([x,y])=>[280+x*202/12,164+side*y*202/12]);
         s+=path(pts,colors.teal,1.05);
         const j=Math.min(12,Math.floor(pts.length*.54));
