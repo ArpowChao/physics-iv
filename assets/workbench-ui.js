@@ -48,24 +48,54 @@
   EM.mountWorkbench=(root,bench,id)=>{
     const mode=bench.modes.find(m=>m.id===id)||bench.modes[0], key=bench.id+"/"+mode.id;
     const defaults=Object.fromEntries(mode.controls.map(c=>[c.key,c.value]));
+    const lesson=EM.workbenchLessons[mode.id], [variable,...conditions]=lesson.variable;
+    const cases=conditions.map(value=>({...defaults,...lesson.setup,[variable]:value}));
     const defaultCamera=mode.camera||bench.camera;
     const theme=mode.id==="aurora"?"space":beamModes.has(mode.id)?"beam":"lab";
     const saved=memory.get(key)||{p:{...defaults},camera:{...defaultCamera},state:{},
-      view:{dimension:"3d",plane:defaultPlanes[key]||"xy",grid:false,labels:false}};
+      view:{dimension:lesson.plane?"2d":"3d",plane:lesson.plane||defaultPlanes[key]||"xy",grid:false,labels:false},
+      activity:{free:false,caseIndex:0,prediction:null,explained:false,evidence:[null,null]}};
     memory.set(key,saved);
-    const {p,camera,state,view}=saved, canRecord=bench.id==="potential-map"&&mode.id!=="field-lines";
+    const {camera,view,activity}=saved, canRecord=bench.id==="potential-map"&&mode.id!=="field-lines";
+    let p=activity.free?saved.p:{...cases[activity.caseIndex]};
     const pointAxes=["x","y","z"];
     const pointControls=pointAxes.map(axis=>mode.controls.find(control=>control.key===axis));
     const hasProbe=pointControls.every(Boolean);
     const playKey=mode.animate?(mode.id==="motor"?"theta":"phase"):null;
     const scenes=shortcuts[key]||[];
     root.innerHTML=`<div class="shell page bench-page">
-      <div class="page-head"><a class="eyebrow bench-index-link" href="#labs">電磁實驗室・${bench.sections.join("、")}</a><h1>${bench.title}</h1><p>${bench.description}</p></div>
-      <nav class="bench-modes" aria-label="實驗情境">${bench.modes.map(m=>`<a href="${url(bench,m.id)}" class="button ${m===mode?"primary":""}" ${m===mode?'aria-current="page"':""}>${m.title}</a>`).join("")}</nav>
-      ${bench.modes.length>1?`<label class="control bench-mode-select"><span>實驗情境</span><select>${bench.modes.map(m=>`<option value="${m.id}" ${m===mode?"selected":""}>${m.title}</option>`).join("")}</select></label>`:""}
+      <div class="page-head"><a class="eyebrow bench-index-link" href="#labs">電磁實驗室・${bench.sections.join("、")}</a><h1>${bench.title}</h1></div>
+      <div class="bench-topbar">
+        <nav class="bench-modes" aria-label="實驗情境">${bench.modes.map(m=>`<a href="${url(bench,m.id)}" class="button ${m===mode?"primary":""}" ${m===mode?'aria-current="page"':""}>${m.title}</a>`).join("")}</nav>
+        ${bench.modes.length>1?`<label class="control bench-mode-select"><span>實驗情境</span><select>${bench.modes.map(m=>`<option value="${m.id}" ${m===mode?"selected":""}>${m.title}</option>`).join("")}</select></label>`:""}
+        <div class="bench-activity-switch" role="group" aria-label="實驗方式">
+          <button type="button" class="button" data-activity="guided" aria-pressed="true">引導觀察</button>
+          <button type="button" class="button" data-activity="free" aria-pressed="false">自由探索</button>
+        </div>
+      </div>
       <div class="lab-shell bench-shell">
-       <div class="bench-layout">
+       <div class="bench-layout" data-activity-layout>
+        <section class="bench-prediction bench-panel" aria-labelledby="bench-question">
+          <p class="bench-step">01　先預測</p>
+          <h2 id="bench-question">${lesson.question}</h2>
+          <p class="bench-fixed">${lesson.fixed}</p>
+          <fieldset class="bench-choices">
+            <legend class="bench-visually-hidden">記下你的預測</legend>
+            ${lesson.choices.map((choice,i)=>`<label><input type="radio" name="bench-prediction" value="${i}" ${activity.prediction===i?"checked":""}><span>${choice}</span></label>`).join("")}
+          </fieldset>
+        </section>
         <div class="bench-visual">
+          <div class="bench-stage-head">
+            <p class="bench-step bench-case-title">02　切換案例</p>
+            ${playKey?'<button type="button" id="bench-play" class="button primary" aria-pressed="false">播放</button>':""}
+          </div>
+          <section class="bench-comparison" aria-label="比較 A 與 B">
+            <div class="bench-cases" role="group" aria-label="比較案例">
+              ${lesson.cases.map((label,i)=>`<button type="button" class="button" data-case="${i}" aria-pressed="false"><span class="bench-case-letter">${i===0?"A":"B"}</span><span>${label}</span></button>`).join("")}
+            </div>
+            <p class="bench-preview" hidden>動態預覽中。停止後會回到目前案例。</p>
+          </section>
+          <p class="bench-scene-caption">${sceneCaptions[mode.id]}</p>
           <div class="bench-view-controls">
             <div class="action-row" role="group" aria-label="顯示模式">
               <button class="button" data-dimension="2d" type="button" aria-pressed="false">2D 平面</button>
@@ -76,10 +106,8 @@
               <button class="button" data-plane="xz" type="button" aria-pressed="false">XZ</button>
               <button class="button" data-plane="yz" type="button" aria-pressed="false">YZ</button>
             </div>
-            ${playKey?'<button type="button" id="bench-play" class="button primary" aria-pressed="false">播放</button>':""}
           </div>
           <div id="bench-plot" class="bench-plot" tabindex="0" role="group" aria-label="三維視窗。拖曳或用方向鍵旋轉；也可用下方滑桿。"></div>
-          <p class="bench-scene-caption">${sceneCaptions[mode.id]}</p>
           <p class="small muted bench-view-hint" id="bench-plane-hint" hidden></p>
           <div class="bench-display-options">
             <label><input type="checkbox" data-overlay="grid" ${view.grid?"checked":""}> 座標網格</label>
@@ -94,7 +122,17 @@
           </div></details>
           <ul class="bench-legend" aria-label="圖例"></ul>
         </div>
-        <div class="bench-side">
+        <section class="bench-evidence bench-panel" aria-labelledby="bench-evidence-title">
+          <p class="bench-step">03　用證據解釋</p>
+          <h2 id="bench-evidence-title">把 A 和 B 放在一起看</h2>
+          <div class="bench-evidence-data"></div>
+          <p class="bench-evidence-status" role="status"></p>
+          <details class="bench-explanation" ${activity.explained?"open":""} hidden>
+            <summary>查看參考解釋</summary>
+            <p>${lesson.explain}</p>
+          </details>
+        </section>
+        <div class="bench-side" hidden>
           <section class="bench-panel bench-measurements">
             <h2>即時讀值</h2>
             <dl class="readouts bench-readouts" id="bench-readouts"></dl>
@@ -120,21 +158,94 @@
         </div>
        </div>
         <p class="small muted" id="bench-notice" role="status"></p>
-        <section class="bench-graphs" hidden><h2>同步讀圖</h2>${playKey?'<p class="small muted">可點圖移動游標，也可用上方滑桿。</p>':""}<div id="bench-graph" ${playKey?'data-scrub="true"':""}></div></section>
+        <details class="bench-graphs" hidden><summary>查看同步圖表</summary>${playKey?'<p class="small muted bench-graph-help">自由探索時可點圖移動游標，也可用上方滑桿。</p>':""}<div id="bench-graph"></div></details>
       </div>
       <div class="tool-shortcuts"><a href="#labs">← 其他實驗</a>${bench.sections.map(s=>`<a href="#course/${s}">回到 ${s} 導讀</a>`).join("")}</div>
     </div>`;
     const find=sel=>root.querySelector(sel), plot=find("#bench-plot"), graph=find("#bench-graph"), readouts=find("#bench-readouts"), play=find("#bench-play");
+    const layout=find(".bench-layout"), evidenceData=find(".bench-evidence-data"), evidenceStatus=find(".bench-evidence-status");
+    const explanation=find(".bench-explanation"), previewNotice=find(".bench-preview");
     const pControls=[...root.querySelectorAll("[data-param]")], viewControls=[...root.querySelectorAll("[data-view]")];
     find(".bench-mode-select select")?.addEventListener("change",e=>{location.hash=url(bench,e.target.value);});
-    let frame=0, loop=0, mouse=null, last=0;
+    let frame=0, loop=0, mouse=null, last=0, preview=false;
+    function updateActivity(){
+      const {free}=activity;
+      layout.dataset.activityLayout=free?"free":"guided";
+      for(const selector of [".bench-prediction",".bench-comparison",".bench-evidence"])find(selector).hidden=free;
+      find(".bench-case-title").hidden=free;
+      find(".bench-stage-head").hidden=free&&!play;
+      find(".bench-side").hidden=!free;
+      const viewControlsPanel=find(".bench-view-controls");
+      if(free)plot.before(viewControlsPanel);
+      else plot.after(viewControlsPanel);
+      graph.parentElement.open=free;
+      if(play){
+        play.textContent=free?"播放":"播放預覽";
+        if(free)graph.dataset.scrub="true";
+        else delete graph.dataset.scrub;
+        find(".bench-graph-help").hidden=!free;
+      }
+      plot.dataset.editable=String(free&&hasProbe);
+      for(const button of root.querySelectorAll("[data-activity]")){
+        const active=(button.dataset.activity==="free")===free;
+        button.setAttribute("aria-pressed",String(active));
+        button.classList.toggle("primary",active);
+      }
+    }
+    function updateCases(){
+      for(const button of root.querySelectorAll("[data-case]")){
+        button.setAttribute("aria-pressed",String(+button.dataset.case===activity.caseIndex));
+      }
+      previewNotice.hidden=!preview;
+      evidenceData.classList.toggle("is-previewing",preview);
+    }
+    function showEvidence(rows){
+      const {caseIndex,evidence}=activity;
+      evidence[caseIndex]=lesson.focus.map(key=>rows.find(row=>row[0]===key));
+      const [a,b]=evidence;
+      const table=`<table><thead><tr><th scope="col">比較量</th><th scope="col" data-evidence="0">A</th><th scope="col" data-evidence="1">B</th></tr></thead><tbody>${
+        evidence[caseIndex].map(([key,label],i)=>`<tr><th scope="row">${label}</th>
+          <td data-evidence="0" data-measure="${key}">${a?.[i][2]??"—"}</td>
+          <td data-evidence="1" data-measure="${key}">${b?.[i][2]??"—"}</td></tr>`).join("")
+      }</tbody></table>`;
+      if(evidenceData.innerHTML!==table)evidenceData.innerHTML=table;
+      evidenceData.dataset.activeCase=String(caseIndex);
+      explanation.hidden=!(a&&b);
+      const message=a&&b?"先找出哪些量變了，再用 A、B 的讀值說明你的判斷。":"切換到案例 B，讓兩次讀值並排顯示。";
+      if(evidenceStatus.textContent!==message)evidenceStatus.textContent=message;
+    }
+    find(".bench-activity-switch").addEventListener("click",e=>{
+      const button=e.target.closest("[data-activity]");
+      if(!button)return;
+      const free=button.dataset.activity==="free";
+      if(free===activity.free)return;
+      stop();
+      activity.free=free;
+      p=free?saved.p:{...cases[activity.caseIndex]};
+      updateActivity();
+      updateView();
+      queue();
+    });
+    find(".bench-cases").addEventListener("click",e=>{
+      const button=e.target.closest("[data-case]");
+      if(!button)return;
+      stop();
+      activity.caseIndex=+button.dataset.case;
+      p={...cases[activity.caseIndex]};
+      updateCases();
+      queue();
+    });
+    find(".bench-choices").addEventListener("change",e=>{
+      if(e.target.name==="bench-prediction")activity.prediction=+e.target.value;
+    });
+    explanation.addEventListener("toggle",()=>{activity.explained=explanation.open;});
     function updateView(){
       const flat=view.dimension==="2d";
       plot.dataset.dimension=view.dimension;
       plot.tabIndex=flat?-1:0;
       plot.setAttribute("aria-label",flat?view.plane.toUpperCase()+" 平面視窗":"三維視窗。拖曳或用方向鍵旋轉。");
       find("#bench-planes").hidden=!flat;
-      find(".bench-camera").hidden=flat;
+      find(".bench-camera").hidden=flat||!activity.free;
       find(".bench-camera-settings").hidden=flat;
       for(const button of root.querySelectorAll("[data-dimension],[data-plane]")){
         const active=button.dataset.dimension===view.dimension||button.dataset.plane===view.plane;
@@ -143,7 +254,7 @@
       }
     }
     function controls(){
-      for(const el of pControls){
+      if(activity.free)for(const el of pControls){
         const k=el.dataset.param, c=mode.controls.find(c=>c.key===k);
         el.value=p[k];
         if(el.type==="range"){
@@ -157,15 +268,18 @@
     function draw(){
       controls();
       const flat=view.dimension==="2d";
-      const overlay={theme,grid:view.grid,labels:view.labels,analysis:view.labels,axes:view.grid||view.labels};
+      const overlay={theme,grid:view.grid,labels:view.labels,analysis:view.labels,axes:view.grid||view.labels,
+        comparisonExtent:activity.free?undefined:lesson.extent};
       const projection=view.dimension==="2d"?{...overlay,plane:view.plane,zoom:1}:{...camera,...overlay};
-      const r=bench.draw(mode.id,p,projection,state);
+      const r=bench.draw(mode.id,p,projection,activity.free?saved.state:{});
       plot.innerHTML=r.diagram;
-      if(mode.id==="field-lines"){
-        find(".bench-scene-caption").textContent=flat&&view.plane==="yz"?
-          "這是 x = 0 切片。符號表示電場垂直切片的方向，箭頭表示平面內的分量。":sceneCaptions[mode.id];
+      find(".bench-scene-caption").textContent=mode.id==="field-lines"&&flat&&view.plane==="yz"?
+        "這是 x = 0 切片。符號表示電場垂直切片的方向，箭頭表示平面內的分量。":activity.free?sceneCaptions[mode.id]:lesson.observe;
+      if(activity.free){
+        readouts.innerHTML=r.rows.map(([k,label,value])=>`<div><dt>${label}</dt><dd data-reading="${k}">${value}</dd></div>`).join("");
+      }else if(!preview){
+        showEvidence(r.rows);
       }
-      readouts.innerHTML=r.rows.map(([k,label,value])=>`<div><dt>${label}</dt><dd data-reading="${k}">${value}</dd></div>`).join("");
       const legend=find(".bench-legend");
       legend.hidden=!view.labels&&mode.id!=="field-lines";
       legend.innerHTML=r.legend.map(([c,name])=>`<li><span aria-hidden="true" style="--swatch:${c}"></span><span>${name}</span></li>`).join("");
@@ -179,11 +293,18 @@
     function queue(){if(!frame)frame=requestAnimationFrame(()=>{frame=0;draw();});}
     function stop(){
       if(loop)cancelAnimationFrame(loop);loop=0;last=0;
-      if(play){play.setAttribute("aria-pressed","false");play.textContent="播放";}
+      if(preview){
+        p={...cases[activity.caseIndex]};
+        preview=false;
+        updateCases();
+      }
+      if(play){play.setAttribute("aria-pressed","false");play.textContent=activity.free?"播放":"播放預覽";}
     }
     if(play)play.addEventListener("click",()=>{
-      if(loop){stop();return;}
-      play.setAttribute("aria-pressed","true");play.textContent="暫停";
+      if(loop){stop();queue();return;}
+      preview=!activity.free;
+      updateCases();
+      play.setAttribute("aria-pressed","true");play.textContent=preview?"停止預覽":"暫停";
       const max=playKey==="theta"?360:100;
       if(mode.id==="aurora"&&p[playKey]===max){p[playKey]=0;queue();}
       const tick=t=>{
@@ -227,7 +348,7 @@
     }
     plot.addEventListener("pointerdown",e=>{
       if(e.button!==0||mouse)return;
-      const handle=hasProbe&&e.target.closest("[data-probe]");
+      const handle=activity.free&&hasProbe&&e.target.closest("[data-probe]");
       if(!handle&&view.dimension!=="3d")return;
       mouse={id:e.pointerId,x:e.clientX,y:e.clientY};
       if(handle){
@@ -260,12 +381,14 @@
       if(step&&view.dimension==="3d"){e.preventDefault();turn(...step);}
     });
     if(playKey)graph.addEventListener("click",e=>{
+      if(!activity.free)return;
       const svg=graph.querySelector("svg"), box=svg.getBoundingClientRect(), x=(e.clientX-box.left)/box.width;
       const start=+svg.dataset.start,end=+svg.dataset.end;
       p[playKey]=Math.round(clamp((x-start)/(end-start),0,1)*(playKey==="theta"?360:100));stop();queue();
     });
     find(".bench-actions").addEventListener("click",e=>{
       const b=e.target.closest("button");if(!b)return;
+      const state=saved.state;
       const notice=find("#bench-notice");
       if(b.id==="bench-reset"){
         stop();Object.assign(p,defaults);Object.assign(camera,defaultCamera);delete state.a;notice.textContent="已恢復初始值。";queue();
@@ -279,6 +402,8 @@
         delete state.a;notice.textContent="已清除起點 A。";queue();
       }
     });
+    updateActivity();
+    updateCases();
     updateView();
     draw();
     return ()=>{stop();if(frame)cancelAnimationFrame(frame);};

@@ -22,6 +22,8 @@
 | [粒子加速器與極光](https://arpowchao.github.io/physics-iv/#labs/particle-apps) | 直線加速器、迴旋加速器、偶極地磁場中的粒子沉降與磁鏡折返。 |
 | [電磁波](https://arpowchao.github.io/physics-iv/#labs/em-wave) | 調整偏振角，從不同平面看 E、B 與傳播方向。 |
 
+24 個工作臺情境預設以「引導觀察」開啟。先記下預測，再比較兩個只改一項條件的案例。證據表保留兩次讀值，兩案都觀察過後可展開參考解釋。「自由探索」可調整全部參數、拖曳測點及查看完整讀值。兩種方式各自保留目前操作狀態。
+
 粒子加速器採非相對論模型。直線加速器依同步條件計算漂移管長度。工作臺預設顯示實驗裝置與運動，勾選「分析標註」可疊加向量和符號。極光採傾斜偶極地磁場，以 110 km 為比較折返高度的參考面。電子運動顯示導引中心，電子群模式的光幕示意高層大氣發光。海陸輪廓來自公開領域的 Natural Earth 資料。 [OpenStax 迴旋加速器](https://openstax.org/books/university-physics-volume-2/pages/11-7-applications-of-magnetic-forces-and-fields) · [Berkeley Lab 直線加速器](https://abc.lbl.gov/wallchart/chapters/11/3.html) · [NASA 極光說明](https://science.nasa.gov/sun/auroras/) · [Natural Earth 陸地輪廓](https://www.naturalearthdata.com/downloads/110m-physical-vectors/110m-land/)。
 
 必歐－沙伐工作臺的圖面、測點拖曳和讀值配置參考 [SAMN Physics 的必歐－沙伐模擬](https://samnphysics.github.io/physicssimulation/electromagnetism/biosavrit.html)。首頁字型由站內的 Outfit 與 Noto Sans TC 子集提供，授權文件見 `assets/fonts/`。
@@ -43,6 +45,7 @@ python -m http.server 8000
 | `data/course.js` | 三章導讀、公式、例題與課綱對照 |
 | `data/concept-practice.js` | 各節的逐概念練習、Bloom 標記與解析 |
 | `data/exams.js` | 三卷原創試題、詳解、配分與題目分類 |
+| `data/workbench-lessons.js` | 各實驗的預測問題、單一變因比較、證據與解釋 |
 | `assets/labs.js` | 互動模型、讀值、示意圖與題圖 |
 | `assets/physics-models.js` | 三維向量、電位、磁力與感應的數值模型 |
 | `assets/workbenches.js`、`assets/workbench-ui.js` | 工作臺情境、三維投影、圖表、相機與時間控制 |

@@ -12,9 +12,18 @@ def run(base, out):
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
 
-        def go(route):
+        def go(route, guided=False):
             page.goto(f"{base.rstrip('/')}/#{route}")
             page.wait_for_function("(r)=>document.querySelector('main').dataset.route===r", arg=route)
+            if page.locator(".bench-activity-switch").count():
+                set_activity("guided" if guided else "free")
+
+        def set_activity(activity):
+            button = page.locator(f'[data-activity="{activity}"]')
+            if button.get_attribute("aria-pressed") != "true":
+                button.click()
+            page.locator(f'.bench-layout[data-activity-layout="{activity}"]').wait_for()
+            page.evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
 
         def read(key):
             return page.locator(f'[data-reading="{key}"]')
@@ -32,9 +41,35 @@ def run(base, out):
         modes = page.evaluate("EM.workbenches.flatMap(b=>b.modes.map(m=>['labs/'+b.id+'/'+m.id,m.controls]))")
         assert len(modes) == 24
         for route, controls in modes:
-            go(route)
+            go(route, guided=True)
             assert page.locator(".bench-modes [aria-current]").count() == 1
             assert page.locator("#bench-plot svg").count() == 1
+            lesson = page.evaluate("m=>EM.workbenchLessons[m]", route.split("/")[-1])
+            control = next(c for c in controls if c["key"] == lesson["variable"][0])
+            a, b = lesson["variable"][1:]
+            assert a != b
+            if "choices" in control:
+                assert all(v in [choice[0] for choice in control["choices"]] for v in [a, b])
+            else:
+                assert control["min"] <= min(a, b) <= max(a, b) <= control["max"]
+            assert not page.locator(".bench-side").is_visible()
+            assert page.locator(".bench-explanation").is_hidden()
+            case_a = page.locator("td[data-evidence='0']")
+            case_b = page.locator("td[data-evidence='1']")
+            initial = case_a.all_inner_texts()
+            assert len(initial) == 2 and all(v != "—" for v in initial), route
+            assert case_b.all_inner_texts() == ["—", "—"], route
+            scale = page.locator("#bench-plot svg").get_attribute("data-scale")
+            page.locator(".bench-choices input").first.check()
+            page.locator("[data-case='1']").click()
+            page.locator(".bench-explanation").wait_for()
+            assert page.locator("#bench-plot svg").get_attribute("data-scale") == scale, route
+            assert case_a.all_inner_texts() == initial, route
+            assert case_b.all_inner_texts() != initial and all(v != "—" for v in case_b.all_inner_texts()), route
+            assert page.locator(".bench-explanation").get_attribute("open") is None
+            page.locator(".bench-explanation summary").click()
+            assert page.locator(".bench-explanation p").is_visible()
+            set_activity("free")
             assert page.locator(".bench-readouts dd").count() >= 3
             assert page.locator(".bench-inputs [data-param]").count() == len(controls)
             assert not page.locator(".bench-shell").evaluate("(e)=>/NaN|Infinity/.test(e.innerHTML)")
@@ -55,6 +90,24 @@ def run(base, out):
             assert page.locator("#bench-readouts").inner_text() == readings or route.startswith("labs/potential-map/")
             page.get_by_role("button", name="3D 空間").click()
             page.locator("#bench-plot svg[data-projection='3d']").wait_for()
+
+        go("labs/induction/enter", guided=True)
+        saved_readings = page.locator(".bench-evidence table").inner_text()
+        plot = page.locator("#bench-plot svg")
+        case_plot = plot.inner_html()
+        page.locator("#bench-play").click()
+        page.locator(".bench-preview").wait_for()
+        page.wait_for_function("(old)=>document.querySelector('#bench-plot svg').innerHTML!==old", arg=case_plot)
+        assert page.locator(".bench-evidence table").inner_text() == saved_readings
+        page.locator("#bench-play").click()
+        page.wait_for_function("(old)=>document.querySelector('#bench-plot svg').innerHTML===old", arg=case_plot)
+        set_activity("free")
+        val("phase", 71)
+        set_activity("guided")
+        assert page.locator(".bench-evidence table").inner_text() == saved_readings
+        assert page.locator(".bench-choices input").first.is_checked()
+        set_activity("free")
+        assert page.locator("#bench-phase").input_value() == "71"
 
         go("labs/biot/element")
         expect("theta", "70.9°")
@@ -204,7 +257,16 @@ def run(base, out):
                 page.wait_for_function("document.querySelector('main').dataset.route==='labs/biot/loop'")
             for route in ["labs", "labs/biot/element", "labs/potential-map/charges", "labs/potential-map/field-lines", "labs/magnetic-force/particle",
                           "labs/particle-apps/cyclotron", "labs/particle-apps/aurora", "labs/induction/transformer", "labs/em-wave/plane-wave"]:
-                go(route)
+                go(route, guided=True)
+                assert page.evaluate("document.documentElement.scrollWidth === innerWidth"), (width, route, "guided")
+                if route != "labs":
+                    assert page.locator(".bench-prediction,.bench-visual,.bench-evidence").evaluate_all(
+                        "(es)=>es.every(e=>e.clientWidth>=230&&e.scrollWidth<=e.clientWidth+1)"
+                    ), (width, route, "guided")
+                    if out and width in (390, 1440):
+                        page.evaluate("window.scrollTo(0,0)")
+                        page.screenshot(path=out / f"{width}-{route.replace('/', '-')}-guided.png", full_page=True)
+                    set_activity("free")
                 assert page.evaluate("document.documentElement.scrollWidth === innerWidth"), (width, route)
                 assert page.locator(".bench-inputs .control:visible, .bench-readouts dd:visible, .bench-note:visible").evaluate_all(
                     "(es)=>es.every(e=>e.clientWidth>=60&&e.scrollWidth<=e.clientWidth+1&&getComputedStyle(e).writingMode==='horizontal-tb')"
@@ -223,7 +285,7 @@ def run(base, out):
                     page.get_by_role("button", name="3D 空間").click()
         assert not errors, errors
         browser.close()
-    print("Verified 24 workbench scenes in 3D and all three 2D planes, with shared readings, controls, and mobile reflow.")
+    print("Verified guided comparisons and free exploration for all 24 scenes, including 2D/3D, preview, and mobile reflow.")
 
 
 if __name__ == "__main__":

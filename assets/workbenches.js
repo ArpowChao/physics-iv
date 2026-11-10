@@ -28,6 +28,7 @@
     return path([a,b],c,w)+`<polygon fill="${c}" points="${[b,sum(h,mul([-y,x],tip*.5)),sub(h,mul([-y,x],tip*.5))].map(v=>v.join(",")).join(" ")}"/>`;
   };
   function scene(camera,extent=30,label="實驗模型",grid=true){
+    extent=camera.comparisonExtent??extent;
     const plane=planes[camera.plane];
     const W=560,H=390,yaw=rad(camera.yaw??0),pitch=rad(camera.pitch??0);
     const scale=H*(plane ? .445 : .41)/extent*camera.zoom;
@@ -156,6 +157,10 @@
     s.slab(dial,[0,0,.7],"steel");
     s.polygon(dial.map(v=>sum(v,[0,0,.38])),"#f8f6e9",1);
     const pivot=sum(point,[0,0,.43]), axis=length(total)?unit(total):[1,0,0], wing=[-axis[1],axis[0],0];
+    for(const angle of [-90,-60,-30,0,30,60,90]){
+      const a=rad(angle), direction=[Math.cos(a),Math.sin(a),0];
+      s.draw([sum(pivot,mul(direction,angle===0?3.6:4.18)),sum(pivot,mul(direction,4.64))],C.muted,angle===0?1.5:.8);
+    }
     const needleBase=[sum(pivot,mul(wing,.92)),sub(pivot,mul(wing,.92))];
     s.polygon([...needleBase,sum(pivot,mul(axis,4.1))],C.red,length(total)?1:.34);
     s.polygon([...needleBase,sub(pivot,mul(axis,4.1))],C.blue,length(total)?1:.34);
@@ -193,6 +198,7 @@
         });
       }
       s.tube([e.a,e.b],single?1.08:.84,"brass");
+      if(single&&camera.comparisonExtent&&!camera.analysis)s.draw([e.m,m.point],C.muted,1.2,"4 4");
       s.probe(m.point); s.arrow(e.m,m.point,C.blue,1.9,"r");
       const plane=planes[camera.plane];
       const trueAngle=!plane||(Math.abs(dot(e.dl,plane.normal))<1e-8&&Math.abs(dot(e.rv,plane.normal))<1e-8);
@@ -669,8 +675,10 @@
       if(camera.analysis&&s.frontOfEarth(endpoint))s.dot(endpoint,m.reachesAtmosphere?C.teal:C.red,m.reachesAtmosphere?"110 km 參考面":"磁鏡點",3.3);
       const localPitch=Math.asin(Math.min(1,Math.sin(rad(p.pitch))*Math.sqrt(m.ratio(latitude))));
       const altitude=(length(m.point(latitude))-1)*m.earthKm;
+      const minimum=(length(endpoint)-1)*m.earthKm;
       return sceneOut(s,[item("fate","導引中心的結果",m.reachesAtmosphere?"可達 110 km 參考面":returning?"已在磁鏡點折返":"會在磁鏡點折返"),
-        item("altitude","導引中心高度",fmt(altitude,0)+" km"),item("cone","赤道損失錐半角",fmt(m.lossCone*180/Math.PI,1)+"°"),
+        item("altitude","目前高度",fmt(altitude,0)+" km"),item("minimum","沿途最低高度",fmt(minimum,0)+" km"),
+        item("cone","赤道損失錐半角",fmt(m.lossCone*180/Math.PI,1)+"°"),
         item("pitch","當地速度與磁場夾角（銳角）",fmt(localPitch*180/Math.PI,1)+"°")],
         [[C.blue,"選取的磁力線"],[C.teal,"電子群的導引中心"]],
         "在傾斜偶極場中，依磁矩守恆估計折返高度。圖中的點表示導引中心，省略快速迴旋及電場作用。110 km 是比較折返高度的參考面。電子群的光幕是大氣受激發的示意，實際極光位置與亮度隨磁層和大氣狀態而變。");
