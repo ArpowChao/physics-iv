@@ -1,0 +1,137 @@
+/* Homepage rhythm and typography follow the wave optics learner homepage. */
+@font-face {
+  font-family: "Outfit Home";
+  src: url("fonts/Outfit-home.woff2") format("woff2");
+  font-weight: 300 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Outfit Home";
+  src: url("fonts/Outfit-home.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Outfit Home";
+  src: url("fonts/Outfit-home.woff2") format("woff2");
+  font-weight: 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Noto Sans TC Home";
+  src: url("fonts/NotoSansTC-home.woff2") format("woff2");
+  font-weight: 300 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Noto Sans TC Home";
+  src: url("fonts/NotoSansTC-home.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Noto Sans TC Home";
+  src: url("fonts/NotoSansTC-home.woff2") format("woff2");
+  font-weight: 900;
+  font-display: swap;
+}
+body:has(#main[data-route="home"]) {
+  font-family: "Outfit Home", "Noto Sans TC Home", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+}
+body:has(#main[data-route="home"]) .sidebar-brand a {
+  display: block;
+  letter-spacing: -.02em;
+}
+body:has(#main[data-route="home"]) .sidebar-brand p { line-height: 1.55; }
+body:has(#main[data-route="home"]) .nav-section-title { font-weight: 700; }
+body:has(#main[data-route="home"]) .nav-item[aria-current="page"] { font-weight: 700; }
+@media (min-width: 901px) {
+  body:has(#main[data-route="home"]) #side-links { display: flow-root; }
+  body:has(#main[data-route="home"]) #side-links > .nav-item + .nav-item { margin-top: .16rem; }
+}
+
+.home-hero { padding-bottom: 1.6rem; margin-bottom: 2rem; }
+.home-hero .view-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: .7rem;
+  padding: .2rem .6rem;
+  border-color: #0694a229;
+  background: #0694a214;
+  font-family: inherit;
+  font-size: .7rem;
+  font-weight: 800;
+  line-height: 1.6;
+  letter-spacing: .1em;
+}
+.home-hero h1 {
+  margin: .55rem 0 0;
+  font: 800 clamp(1.8rem,3.4vw,2.7rem)/1.35 "Outfit Home", "Noto Sans TC Home", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  letter-spacing: -.025em;
+}
+.home-hero > p {
+  max-width: 52ch;
+  margin: .7rem 0 1.1rem;
+  color: var(--muted);
+  font-size: .92rem;
+  line-height: 1.85;
+}
+.home-hero .lesson-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: .65rem 1.1rem;
+  border: 1px solid #176c70;
+  border-radius: 8px;
+  background: #176c70;
+  color: white;
+  font-size: .88rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.home-hero .lesson-primary:hover { background: #12585c; }
+.home-hero .lesson-actions { margin-top: 1rem; }
+.learning-progress {
+  height: 5px;
+  margin: .65rem 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #dfebe6;
+}
+.learning-progress span { display: block; height: 100%; background: #238378; }
+[data-route="home"] .section-title { display: flex; align-items: center; gap: .6rem; line-height: 1.6; letter-spacing: normal; padding-bottom: .5rem; }
+[data-route="home"] .section-title::before { height: 18px; margin: 0; flex: 0 0 4px; }
+[data-route="home"] .chapter-card h3 { margin: .6rem 0; line-height: 1.6; }
+[data-route="home"] .chapter-card p { margin: 0; }
+[data-route="home"] .chapter-card > a {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .75rem;
+  margin-top: 1rem;
+  padding: .4rem 0;
+  font-size: .85rem;
+  font-weight: 700;
+}
+[data-route="home"] .chapter-card .progress-note { margin: 0; }
+[data-route="home"] .tool-shortcuts { margin: 0; }
+[data-route="home"] .lesson-disclosure > summary { padding: .95rem 1.2rem; font-weight: 700; color: var(--ink); }
+.home-local-note { margin: 1rem 0 0; }
+.edu-table-container { overflow-x: auto; border: 1px solid var(--rule); border-radius: 12px; }
+.edu-table { width: 100%; min-width: 410px; border-collapse: collapse; font-size: .85rem; }
+.edu-table thead { background: #edf4f1; }
+.edu-table :is(th,td) { border-bottom: 1px solid var(--rule); padding: .65rem .8rem; text-align: left; vertical-align: top; }
+.edu-table tr:last-child :is(th,td) { border-bottom: 0; }
+.edu-table tbody th { font-weight: 650; }
+.edu-table-container + .progress-note { margin: .7rem 0 0; }
+.footer-inner { display: contents; }
+.footer-credit { display: none; }
+[data-route="home"] + .app-footer { display: block; padding: 1rem 2rem; font-size: .82rem; }
+[data-route="home"] + .app-footer .footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+[data-route="home"] + .app-footer .footer-credit { display: block; margin-top: .35rem; font-size: .72rem; color: var(--accent); }
+@media (max-width: 600px) {
+  .home-hero h1 { font-size: 1.9rem; }
+  .home-hero .lesson-primary { width: 100%; }
+  [data-route="home"] + .app-footer .footer-inner { align-items: flex-start; flex-direction: column; }
+}

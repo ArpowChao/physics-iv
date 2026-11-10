@@ -28,12 +28,14 @@
   };
   function scene(camera,extent=30,label="實驗模型",grid=true){
     const plane=planes[camera.plane];
-    const W=560,H=390,yaw=rad(camera.yaw??0),pitch=rad(camera.pitch??0), scale=H*.39/extent*camera.zoom;
-    const rotate=([x,y,z])=>[W/2+scale*(Math.cos(yaw)*x-Math.sin(yaw)*y),
-      H/2-scale*(Math.cos(pitch)*z+Math.sin(pitch)*(Math.sin(yaw)*x+Math.cos(yaw)*y))];
-    const proj=plane?point=>[W/2+scale*point[plane.axes[0]],H/2-scale*point[plane.axes[1]]]:rotate;
-    const toward=plane?.normal||[-Math.sin(yaw)*Math.cos(pitch),-Math.cos(yaw)*Math.cos(pitch),Math.sin(pitch)];
-    let out="", tags=[];
+    const W=560,H=390,yaw=rad(camera.yaw??0),pitch=rad(camera.pitch??0);
+    const scale=H*(plane ? .445 : .41)/extent*camera.zoom;
+    const axes=plane?.axes||[0,1];
+    const right=plane?planePoint(axes,1,0):[Math.cos(yaw),-Math.sin(yaw),0];
+    const up=plane?planePoint(axes,0,1):[Math.sin(yaw)*Math.sin(pitch),Math.cos(yaw)*Math.sin(pitch),Math.cos(pitch)];
+    const toward=cross(right,up);
+    const proj=point=>[W/2+scale*dot(point,right),H/2-scale*dot(point,up)];
+    let out="", tags=[], probes=[];
     const draw=(nodes,c,w,d)=>{out+=path(nodes.map(proj),c,w,d);};
     const polygon=(nodes,fill,opacity=.17)=>{out+=`<polygon points="${nodes.map(x=>proj(x).join(",")).join(" ")}" fill="${fill}" opacity="${opacity}"/>`;};
     const arrow=(a,b,c,w=2.3,tag)=>{
@@ -53,32 +55,47 @@
       out+=front?`<circle cx="${x}" cy="${y}" r="2" fill="${c}"/>`:
         path([[x-2.7,y-2.7],[x+2.7,y+2.7]],c,1.4)+path([[x+2.7,y-2.7],[x-2.7,y+2.7]],c,1.4);
     }
-    const dot=(v,c,tag,r=4)=>{const [x,y]=proj(v);out+=`<circle cx="${x}" cy="${y}" r="${r}" fill="${c}" stroke="${C.white}" stroke-width="1.3"/>`;if(tag)tags.push([[x,y],tag,c]);};
+    function mark(v,color,tag,r=4){
+      const [x,y]=proj(v);
+      out+=`<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="${C.white}" stroke-width="1.3"/>`;
+      if(tag)tags.push([[x,y],tag,color]);
+    }
+    function probe(v,tag="P"){
+      mark(v,C.ink,tag,5);
+      const [x,y]=proj(v);
+      probes.push(`<circle cx="${x}" cy="${y}" r="15" fill="transparent" data-probe="true"/>`);
+    }
+    function charge(v,positive){
+      const color=positive?C.red:C.blue, [x,y]=proj(v);
+      out+=`<circle cx="${x}" cy="${y}" r="8" fill="${color}" stroke="${C.white}" stroke-width="1.3"/><path d="M${x-3.5} ${y}h7${positive?` M${x} ${y-3.5}v7`:""}" stroke="white" stroke-width="1.5"/>`;
+    }
     const disk=(v,r,color,opacity=1)=>{const [x,y]=proj(v);out+=`<circle cx="${x}" cy="${y}" r="${r*scale}" fill="${color}" opacity="${opacity}"/>`;};
     const g=extent*.85;
-    const axes=plane?.axes||[0,1];
-    if(grid){
+    if(grid&&camera.grid!==false){
       for(let i=-4;i<=4;i++){
         const a=g*i/4;
         draw([planePoint(axes,-g,a),planePoint(axes,g,a)],C.grid,1);
         draw([planePoint(axes,a,-g),planePoint(axes,a,g)],C.grid,1);
       }
+    }
+    if(grid&&camera.axes!==false){
       const activeAxes=plane?axes:[0,1,2];
       activeAxes.forEach(axis=>arrow(zero,zero.map((_,i)=>i===axis?g:0),C.muted,1.1,"xyz"[axis]));
     }
-    return {draw,polygon,arrow,dot,disk,finish(){
+    return {draw,polygon,arrow,dot:mark,probe,charge,disk,finish(){
       // Keep vector tags readable and inside the viewport; place overlapping labels on nearby rows.
       const used=[];
       const labels=tags.map(([[x,y],text,color])=>{
         if(x<0||y<0||x>W||y>H)return "";
+        if(camera.labels===false)return "";
         const w=Math.max(17,10+Array.from(text).length*10), px=clamp(x+6,2,W-w-2);
         let py=clamp(y-12,12,H-10);
         for(let i=0;i<6&&used.some(([a,b,c])=>px<c+2&&px+w>a-2&&Math.abs(py-b)<16);i++)py=clamp(py+(py>H-26?-19:18),12,H-10);
         used.push([px,py,px+w]);
-        return `<rect x="${px}" y="${py-12}" width="${w}" height="18" rx="4" fill="${C.white}" opacity=".94"/><text x="${px+5}" y="${py+1}" font-size="16" fill="${color}">${txt(text)}</text>`;
+        return `<text x="${px+5}" y="${py+1}" class="bench-plot-label" font-size="15" fill="${color}">${txt(text)}</text>`;
       }).join("");
       const view=plane?camera.plane.toUpperCase()+" 平面投影":"3D 空間";
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" data-projection="${camera.plane||"3d"}" role="img" aria-label="${txt(view+"・"+label)}">${out}${labels}</svg>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" data-projection="${camera.plane||"3d"}" data-right="${right}" data-up="${up}" data-scale="${scale}" role="img" aria-label="${txt(view+"・"+label)}">${out}${labels}${probes.join("")}</svg>`;
     }};
   }
   function chart(xmax,series,at,xlabel="時間 t（s）",xmin=0){
@@ -142,22 +159,32 @@
   const biot={
     id:"biot",title:"必歐－沙伐定律：三維磁場工作臺",sections:["2-1","2-2"],modes:biotModes,
     description:"轉動空間視角，移動觀測點 P，逐段追蹤電流元、位置向量、分磁場與合磁場。",
-    camera:{yaw:34,pitch:29,zoom:1},
+    formula:"ΔB = (μ₀ / 4π) · I(Δℓ × r̂) / r²",
+    camera:{yaw:-32,pitch:25,zoom:1},
     draw(mode,p,camera){
       if(mode==="compass")return drawCompass(p,camera);
-      const m=P.biot(mode,p), e=m.selected, s=scene(camera,mode==="straight"?Math.max(31,p.half):32,"三維電流分布與觀測點 P 的磁場向量");
-      s.polygon([e.m,sum(e.m,e.dl),sum(m.point,e.dl),m.point],C.blue,.08);
-      m.paths.forEach(({nodes,sign})=>{
-        s.draw(nodes,C.muted,2.2);
-        const k=Math.floor(nodes.length*.3), a=nodes[k], b=nodes[Math.min(k+3,nodes.length-1)];
-        const dir=mul(unit(sub(b,a)),Math.sign(p.i)*sign);
-        if(p.i)pointArrow(s,a,dir,3.9,C.amber,"I",2.5);
-      });
-      s.dot(m.point,C.ink,"P",5); s.arrow(e.m,m.point,C.blue,1.9,"r");
+      const m=P.biot(mode,p), e=m.selected, single=mode==="element";
+      const extent=single?Math.max(23,e.d+8):mode==="straight"?Math.max(31,p.half):32;
+      const s=scene(camera,extent,"電流分布與觀測點 P 的磁場向量");
+      const direction=unit(e.dl), planeEdge=single?mul(direction,Math.min(18,e.d)):e.dl;
+      s.polygon([e.m,sum(e.m,planeEdge),m.point],C.amber,single ? .16 : .07);
+      if(mode==="element"){
+        const wire=mul(direction,Math.min(28,extent));
+        s.draw([sub(e.m,wire),sum(e.m,wire)],C.teal,5);
+        s.draw([e.a,e.b],C.amber,7);
+      }else{
+        m.paths.forEach(({nodes,sign})=>{
+          s.draw(nodes,C.muted,2.2);
+          const k=Math.floor(nodes.length*.3), a=nodes[k], b=nodes[Math.min(k+3,nodes.length-1)];
+          const dir=mul(unit(sub(b,a)),Math.sign(p.i)*sign);
+          if(p.i)pointArrow(s,a,dir,3.9,C.amber,"I",2.5);
+        });
+      }
+      s.probe(m.point); s.arrow(e.m,m.point,C.blue,1.9,"r");
       const plane=planes[camera.plane];
       const trueAngle=!plane||(Math.abs(dot(e.dl,plane.normal))<1e-8&&Math.abs(dot(e.rv,plane.normal))<1e-8);
-      if(trueAngle&&e.angle>1&&e.angle<179){
-        const a=unit(e.dl), b=unit(sub(unit(e.rv),mul(a,dot(a,unit(e.rv))))), arc=Math.min(4.8,e.d*.25), angle=rad(e.angle);
+      if(trueAngle&&m.angle>1&&m.angle<179){
+        const a=unit(e.dl), b=unit(sub(unit(e.rv),mul(a,dot(a,unit(e.rv))))), arc=Math.min(5.8,e.d*.33), angle=rad(m.angle);
         const offset=u=>sum(e.m,sum(mul(a,arc*Math.cos(u*angle)),mul(b,arc*Math.sin(u*angle))));
         s.draw(sample(28,offset),C.muted,1.35,"3 2");s.dot(offset(.55),C.muted,"θ",2);
       }
@@ -167,10 +194,10 @@
         pointArrow(s,m.point,e.bvec,9,C.violet,"ΔB");
         if(mode!=="element")pointArrow(s,m.point,m.total,14,C.teal,"B",3.2);
       }
-      const rows=[item("r","電流元到 P 的距離",fmt(e.d)+" cm"),item("theta","Δℓ 與 r 夾角",e.angle===null?"—":fmt(e.angle,1)+"°"),
-        item("part","選取電流元 ΔB（x, y, z）",valid?vec(e.bvec,3)+" μT":"—"),
-        item("total","磁場量值 |B|",valid?mag(m.total,"μT",3):"—"),
-        item("vector","合磁場 B（x, y, z）",valid?vec(m.total,3)+" μT":"—")];
+      const rows=[item("r","電流元到 P 的距離",fmt(e.d)+" cm"),item("theta","Δℓ 與 r 夾角",m.angle===null?"—":fmt(m.angle,1)+"°")];
+      if(!single)rows.push(item("part","選取電流元 ΔB（x, y, z）",valid?vec(e.bvec,3)+" μT":"—"));
+      rows.push(item("total",single?"磁場量值 |ΔB|":"磁場量值 |B|",valid?mag(m.total,"μT",3):"—"),
+        item("vector",single?"磁場 ΔB（x, y, z）":"合磁場 B（x, y, z）",valid?vec(m.total,3)+" μT":"—"));
       if(mode==="straight"){
         const r=Math.hypot(p.y,p.z);
         rows.push(item("ideal","長直導線近似（同一垂距）",r>=.45?fmt(20*Math.abs(p.i)/r,3)+" μT":"—"));
@@ -189,7 +216,7 @@
     const sources=[[-p.spacing/2,p.q],[p.spacing/2,p.q2]].filter(([,q])=>q);
     const fieldAt=position=>P.electro("charges",p,position)?.e||zero;
     if(camera.plane==="yz"){
-      for(let y=-21;y<=21;y+=7)for(let z=-21;z<=21;z+=7){
+      for(let y=-18;y<=18;y+=9)for(let z=-18;z<=18;z+=9){
         const origin=[0,y,z], field=fieldAt(origin);
         pointArrow(s,origin,field,3.5,C.teal);
       }
@@ -197,8 +224,8 @@
       // Axial symmetry keeps each traced line in a meridional plane containing both charges.
       const angles=camera.plane==="xy"?[0]:camera.plane==="xz"?[Math.PI/2]:[0,Math.PI/3,2*Math.PI/3];
       for(const [x,q] of sources)for(const azimuth of angles){
-        for(let i=0;i<10;i++){
-          const theta=TAU*(i+.21)/10;
+        for(let i=0;i<12;i++){
+          const theta=TAU*(i+.5)/12;
           const seed=[Math.cos(theta),Math.sin(theta)*Math.cos(azimuth),Math.sin(theta)*Math.sin(azimuth)];
           let current=sum([x,0,0],mul(seed,.9));
           const points=[current], sign=Math.sign(q);
@@ -224,17 +251,20 @@
         }
       }
     }
-    sources.forEach(([x,q])=>s.dot([x,0,0],q>0?C.red:C.blue,x<0?"Q₁":"Q₂",7));
-    s.dot(point,C.ink,"P",5);
+    sources.forEach(([x,q])=>s.charge([x,0,0],q>0));
+    s.probe(point,p.vectors?"P":"");
     const force=at?mul(at.e,p.test):null; // nC × N/C gives nN.
     if(at){
-      pointArrow(s,point,at.e,10,C.blue,"E");
-      pointArrow(s,point,force,15,C.violet,"F");
+      if(p.vectors===1)pointArrow(s,point,at.e,12,C.blue,"E");
+      if(p.vectors===2)pointArrow(s,point,force,12,C.violet,"F");
     }
     const rows=[item("field","P 點電場 |E|",at?mag(at.e,"N/C",1):"—"),
       item("vector","電場 E（x, y, z）",at?vec(at.e,1)+" N/C":"—"),
       item("force","靜電力 F（x, y, z）",force?vec(force,1)+" nN":"—")];
-    return sceneOut(s,rows,[[C.teal,camera.plane==="yz"?"x = 0 切片的局部電場":"電力線"],[C.blue,"P 的電場 E"],[C.violet,"檢驗電荷受力 F"]],
+    const legend=[[C.teal,camera.plane==="yz"?"x = 0 切片的局部電場":"電力線"]];
+    if(p.vectors===1)legend.push([C.blue,"P 的電場 E"]);
+    if(p.vectors===2)legend.push([C.violet,"檢驗電荷受力 F"]);
+    return sceneOut(s,rows,legend,
       (camera.plane==="yz"?"YZ 顯示 x = 0 切片的局部電場向量。":
         camera.plane?"電力線畫在包含兩場源的中央平面，P 可在平面外。":"電力線畫在通過兩場源的三個平面上。")+
       "線數與箭長為示意。讀值以 P 的實際三維座標計算。");
@@ -246,7 +276,7 @@
     modes:[
       {id:"charges",title:"點電荷等電位線",controls:chargeControls,
         task:"等量異號時，將 P 放到 x = 0 的平面。比較 V = 0 與 E 是否也為零，再把右側電荷改為同號。"},
-      {id:"field-lines",title:"電力線與庫侖力",controls:chargeControls,
+      {id:"field-lines",title:"電力線與庫侖力",controls:[pick("vectors","圖上顯示",[[0,"電力線"],[1,"電力線與電場 E"],[2,"電力線與靜電力 F"]],0),...chargeControls.map(c=>c.key==="z"?{...c,value:0}:c)],
         task:"先將右側電荷設為 0，再加上同號或異號場源。只反轉檢驗電荷的符號，觀察電場與受力的差別。"},
       {id:"plates",title:"平行導體板",controls:[ctl("voltage","板間電位差",2,30,1,14,"V"),ctl("gap","板間距",6,28,1,18,"cm"),...xyz(0,5,4)],
         task:"先只改 y、z，再改 x。哪些移動讓電位改變？固定電位差再改板間距，觀察 V(x) 的斜率。"},
@@ -293,7 +323,7 @@
         s.draw(outline,C.muted,1.4);s.draw(outline.map(([x,y])=>[x,0,y]),C.muted,1.2,"5 3");s.draw(outline.map(([x,y])=>[0,x,y]),C.muted,1.2,"5 3");
       }
       if(state.a)s.dot(state.a,C.violet,"A",4.5);
-      s.dot(point,C.ink,"P",5);
+      s.probe(point);
       if(at)pointArrow(s,point,at.e,12,C.teal,"E");
       const rows=[item("potential","P 點電位 V",at?fmt(at.v,2)+" V":"—"),item("field","P 點電場 |E|",at?mag(at.e,"N/C",2):"—"),
         item("vector","P 點電場 E（x, y, z）",at?vec(at.e,1)+" N/C":"—"),item("energy","P 點電位能 qV",at?fmt(p.test*at.v,2)+" nJ":"—"),

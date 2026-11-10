@@ -24,6 +24,8 @@
 
 粒子加速器採高中非相對論模型。極光採理想偶極地磁場，將高度 110 km 當作大氣入口，並放大迴旋半徑以看清軌跡。相關背景見 [OpenStax 迴旋加速器](https://openstax.org/books/university-physics-volume-2/pages/11-7-applications-of-magnetic-forces-and-fields)和 [NASA 極光說明](https://science.nasa.gov/sun/auroras/)。
 
+必歐－沙伐工作臺的圖面、測點拖曳和讀值配置參考 [SAMN Physics 的必歐－沙伐模擬](https://samnphysics.github.io/physicssimulation/electromagnetism/biosavrit.html)。首頁字型由站內的 Outfit 與 Noto Sans TC 子集提供，授權文件見 `assets/fonts/`。
+
 物理模型以全華課本為課程範圍，並對照 OpenStax 的 [必歐－沙伐定律](https://openstax.org/books/university-physics-volume-2/pages/12-1-the-biot-savart-law)及[動生電動勢](https://openstax.org/books/university-physics-volume-2/pages/13-3-motional-emf)。模擬在三維座標計算，再以可旋轉的正射投影顯示，不依賴 WebGL。有限導線省略外部回路，螺線管以同軸圓圈近似；畫面向量箭長不作量尺，量值以數字讀數為準。
 
 ## 在本機使用

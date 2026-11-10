@@ -21,18 +21,22 @@
   EM.mountWorkbench=(root,bench,id)=>{
     const mode=bench.modes.find(m=>m.id===id)||bench.modes[0], key=bench.id+"/"+mode.id;
     const defaults=Object.fromEntries(mode.controls.map(c=>[c.key,c.value]));
+    const sparseGrid=bench.id==="biot"||mode.id==="field-lines";
     const saved=memory.get(key)||{p:{...defaults},camera:{...bench.camera},state:{},
-      view:{dimension:"3d",plane:defaultPlanes[key]||"xy"}};
+      view:{dimension:"3d",plane:defaultPlanes[key]||"xy",grid:!sparseGrid,labels:true}};
     memory.set(key,saved);
     const {p,camera,state,view}=saved, canRecord=bench.id==="potential-map"&&mode.id!=="field-lines";
+    const pointAxes=["x","y","z"];
+    const pointControls=pointAxes.map(axis=>mode.controls.find(control=>control.key===axis));
+    const hasProbe=pointControls.every(Boolean);
     const playKey=mode.animate?(mode.id==="motor"?"theta":"phase"):null;
     const scenes=shortcuts[key]||[];
     root.innerHTML=`<div class="shell page bench-page">
-      <div class="breadcrumbs"><a href="#labs">電磁實驗室</a><span>/</span><span>進階工作臺</span></div>
-      <div class="page-head"><p class="eyebrow">進階工作臺・${bench.sections.join("、")}</p><h1>${bench.title}</h1><p>${bench.description}</p></div>
+      <div class="page-head"><a class="eyebrow bench-index-link" href="#labs">電磁實驗室・${bench.sections.join("、")}</a><h1>${bench.title}</h1><p>${bench.description}</p></div>
       <nav class="bench-modes" aria-label="實驗情境">${bench.modes.map(m=>`<a href="${url(bench,m.id)}" class="button ${m===mode?"primary":""}" ${m===mode?'aria-current="page"':""}>${m.title}</a>`).join("")}</nav>
-      <div class="lab-observation"><strong>帶著一個問題看</strong><p>${mode.task}</p></div>
+      ${bench.modes.length>1?`<label class="control bench-mode-select"><span>實驗情境</span><select>${bench.modes.map(m=>`<option value="${m.id}" ${m===mode?"selected":""}>${m.title}</option>`).join("")}</select></label>`:""}
       <div class="lab-shell bench-shell">
+       <div class="bench-layout">
         <div class="bench-visual">
           <div class="bench-view-controls">
             <div class="action-row" role="group" aria-label="顯示模式">
@@ -45,8 +49,13 @@
               <button class="button" data-plane="yz" type="button" aria-pressed="false">YZ</button>
             </div>
           </div>
-          <p class="small muted bench-view-hint" id="bench-plane-hint" hidden></p>
           <div id="bench-plot" class="bench-plot" tabindex="0" role="group" aria-label="三維視窗。拖曳或用方向鍵旋轉；也可用下方滑桿。"></div>
+          <p class="small muted bench-view-hint" id="bench-plane-hint" hidden></p>
+          <div class="bench-display-options">
+            ${hasProbe?'<span>拖曳測點 P</span>':""}
+            <label><input type="checkbox" data-overlay="grid" ${view.grid?"checked":""}> 座標網格</label>
+            <label><input type="checkbox" data-overlay="labels" ${view.labels?"checked":""}> 圖面標註</label>
+          </div>
           <div class="bench-camera" aria-label="三維視角">
             <span>拖曳旋轉・⊙ 出畫面／⊗ 入畫面</span>
             <div class="action-row"><button class="button" data-camera="xy" type="button">俯視 XY</button><button class="button" data-camera="xz" type="button">側視 XZ</button><button class="button" data-camera="default" type="button">預設視角</button></div>
@@ -56,6 +65,13 @@
           </div></details>
           <ul class="bench-legend" aria-label="圖例"></ul>
         </div>
+        <div class="bench-side">
+          <section class="bench-panel bench-measurements">
+            <h2>即時讀值</h2>
+            ${bench.formula&&mode.id==="element"?`<p class="formula bench-equation">${bench.formula}</p>`:""}
+            <dl class="readouts bench-readouts" id="bench-readouts"></dl>
+          </section>
+          <section class="bench-panel">
         <h2 class="bench-controls-title">調整實驗參數</h2>
         <div class="bench-inputs">${mode.controls.map(c=>`<label class="control" for="bench-${c.key}">
           <span class="control-line"><span>${c.label}</span>${c.choices?"":`<output id="bench-out-${c.key}" for="bench-${c.key}"></output>`}</span>
@@ -68,8 +84,13 @@
           <button type="button" class="button" id="bench-reset">恢復實驗初始值</button>
           ${scenes.map(([name],i)=>`<button type="button" class="button" data-preset="${i}">${name}</button>`).join("")}
         </div>
-        <dl class="readouts bench-readouts" id="bench-readouts"></dl>
+          </section>
+          <details class="bench-panel bench-guide"><summary>觀察提示與模型</summary>
+            <p>${mode.task}</p>
         <p class="bench-note" id="bench-note"></p>
+          </details>
+        </div>
+       </div>
         <p class="small muted" id="bench-notice" role="status"></p>
         <section class="bench-graphs" hidden><h2>同步讀圖</h2>${playKey?'<p class="small muted">可點圖移動游標，也可用上方滑桿。</p>':""}<div id="bench-graph" ${playKey?'data-scrub="true"':""}></div></section>
       </div>
@@ -77,6 +98,7 @@
     </div>`;
     const find=sel=>root.querySelector(sel), plot=find("#bench-plot"), graph=find("#bench-graph"), readouts=find("#bench-readouts"), play=find("#bench-play");
     const pControls=[...root.querySelectorAll("[data-param]")], viewControls=[...root.querySelectorAll("[data-view]")];
+    find(".bench-mode-select select")?.addEventListener("change",e=>{location.hash=url(bench,e.target.value);});
     let frame=0, loop=0, mouse=null, last=0;
     function updateView(){
       const flat=view.dimension==="2d";
@@ -88,7 +110,7 @@
       find(".bench-camera-settings").hidden=flat;
       const hint=find("#bench-plane-hint");
       hint.hidden=!flat;
-      if(flat)hint.textContent="箭頭顯示平面分量。⊙ 表示朝向觀察者，⊗ 表示背離觀察者。";
+      if(flat)hint.textContent="⊙ 朝向觀察者・⊗ 背離觀察者";
       for(const button of root.querySelectorAll("[data-dimension],[data-plane]")){
         const active=button.dataset.dimension===view.dimension||button.dataset.plane===view.plane;
         button.setAttribute("aria-pressed",String(active));
@@ -109,7 +131,8 @@
     }
     function draw(){
       controls();
-      const projection=view.dimension==="2d"?{plane:view.plane,zoom:1}:camera;
+      const overlay={grid:view.grid,labels:view.labels,axes:mode.id!=="field-lines"||view.grid};
+      const projection=view.dimension==="2d"?{...overlay,plane:view.plane,zoom:1}:{...camera,...overlay};
       const r=bench.draw(mode.id,p,projection,state);
       plot.innerHTML=r.diagram;
       readouts.innerHTML=r.rows.map(([k,label,value])=>`<div><dt>${label}</dt><dd data-reading="${k}">${value}</dd></div>`).join("");
@@ -140,6 +163,12 @@
     find(".bench-camera-settings").addEventListener("input",e=>{
       const k=e.target.dataset.view;if(k){camera[k]=+e.target.value;queue();}
     });
+    find(".bench-display-options").addEventListener("change",e=>{
+      const overlay=e.target.dataset.overlay;
+      if(!overlay)return;
+      view[overlay]=e.target.checked;
+      queue();
+    });
     find(".bench-camera").addEventListener("click",e=>{
       const mode=e.target.closest("[data-camera]")?.dataset.camera;
       if(!mode)return;
@@ -160,11 +189,31 @@
       queue();
     }
     plot.addEventListener("pointerdown",e=>{
-      if(view.dimension!=="3d"||e.button!==0||mouse)return;
-      mouse={id:e.pointerId,x:e.clientX,y:e.clientY};plot.setPointerCapture(e.pointerId);
+      if(e.button!==0||mouse)return;
+      const handle=hasProbe&&e.target.closest("[data-probe]");
+      if(!handle&&view.dimension!=="3d")return;
+      mouse={id:e.pointerId,x:e.clientX,y:e.clientY};
+      if(handle){
+        const svg=handle.ownerSVGElement, {right,up,scale}=svg.dataset;
+        mouse.probe={
+          start:pointAxes.map(axis=>p[axis]),right:right.split(",").map(Number),up:up.split(",").map(Number),
+          pixelsPerCm:Number(scale)*svg.getScreenCTM().a
+        };
+      }
+      plot.setPointerCapture(e.pointerId);
     });
     plot.addEventListener("pointermove",e=>{
       if(mouse?.id!==e.pointerId)return;
+      if(mouse.probe){
+        const {start,right,up,pixelsPerCm}=mouse.probe;
+        const dx=(e.clientX-mouse.x)/pixelsPerCm, dy=(mouse.y-e.clientY)/pixelsPerCm;
+        for(const [i,control] of pointControls.entries()){
+          const value=start[i]+right[i]*dx+up[i]*dy;
+          p[control.key]=clamp(Math.round(value/control.step)*control.step,control.min,control.max);
+        }
+        queue();
+        return;
+      }
       turn(Math.round((e.clientX-mouse.x)*.7),Math.round((e.clientY-mouse.y)*.7));
       mouse={id:e.pointerId,x:e.clientX,y:e.clientY};
     });

@@ -3,17 +3,33 @@
 .bench-page h1 { text-wrap: balance; }
 .bench-modes { display: flex; flex-wrap: wrap; gap: .45rem; margin: 0 0 1rem; }
 .bench-modes .button { min-height: 42px; padding-inline: .8rem; }
+.bench-mode-select { display: none; }
+.bench-index-link { text-decoration: none; }
+.bench-index-link:hover { text-decoration: underline; }
 .bench-visual { min-width: 0; }
+.bench-shell { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.bench-layout, .bench-side { display: grid; gap: .85rem; min-width: 0; }
+.bench-side { align-content: start; }
+.bench-panel { min-width: 0; padding: .9rem 1rem; border: 1px solid var(--rule); border-radius: 12px; background: white; }
+.bench-panel h2 { margin: 0 0 .6rem; font-size: .96rem; }
+.bench-equation { margin: .3rem 0 .45rem; padding: .45rem .5rem; border-radius: 5px; background: #eef6f7; font-size: .82rem; }
+.bench-guide summary { font-size: .88rem; font-weight: 700; color: var(--accent); }
+.bench-guide p { font-size: .84rem; margin: .55rem 0 0; }
+.bench-side .bench-inputs { grid-template-columns: minmax(0,1fr); gap: .65rem; }
 .bench-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem 1rem; margin-bottom: .55rem; }
 .bench-view-controls .button { min-height: 44px; padding: .4rem .8rem; }
 .bench-view-controls [data-plane] { min-width: 44px; }
-.bench-view-hint { margin: 0 0 .5rem; }
+.bench-view-hint { margin: .35rem 0 0; font-size: .76rem; }
 .bench-plot { overflow: hidden; background: #f4fafb; border: 1px solid #d4e4e7; border-radius: 12px; cursor: grab; touch-action: none; }
 .bench-plot:active { cursor: grabbing; }
 .bench-plot[data-dimension="2d"] { cursor: default; touch-action: auto; }
+.bench-plot [data-probe] { cursor: move; touch-action: none; }
 .bench-shell [hidden] { display: none; }
 .bench-plot svg, .bench-graphs svg { display: block; width: 100%; height: auto; font-family: var(--body); }
-.bench-plot svg { max-height: 485px; }
+.bench-plot-label { paint-order: stroke; stroke: #f4fafb; stroke-width: 2.5px; stroke-linejoin: round; }
+.bench-display-options { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; margin-top: .55rem; color: var(--muted); font-size: .8rem; }
+.bench-display-options label { cursor: pointer; }
+.bench-display-options input { accent-color: var(--accent); vertical-align: middle; }
 .bench-camera { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .35rem .8rem; margin-top: .6rem; color: var(--muted); font-size: .85rem; }
 .bench-camera .button, .bench-actions .button { min-height: 41px; padding: .4rem .7rem; }
 .bench-camera-settings { margin: .65rem 0; font-size: .84rem; }
@@ -21,13 +37,14 @@
 .bench-legend { list-style: none; padding: 0; margin: .65rem 0 0; display: flex; flex-wrap: wrap; gap: .25rem .85rem; }
 .bench-legend li { display: flex; align-items: baseline; gap: .35rem; color: var(--muted); font-size: .8rem; }
 .bench-legend li > span:first-child { display: inline-block; width: .95rem; height: .21rem; border-radius: 9px; align-self: center; background: var(--swatch); }
-.bench-controls-title { border-top: 1px solid var(--rule); padding-top: .9rem; margin-top: 1rem; font-size: 1rem; }
 .bench-inputs { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,185px),1fr)); gap: .7rem 1.1rem; }
 .bench-inputs > .control { min-width: 0; font-size: .86rem; }
 .bench-camera-settings .bench-inputs { margin-top: .4rem; }
 .bench-actions { margin-top: .9rem; }
-.bench-readouts > div { min-width: 0; }
-.bench-shell .bench-readouts dd { font-size: .94rem; }
+.bench-shell .bench-readouts { display: block; margin: 0; }
+.bench-shell .bench-readouts > div { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: baseline; gap: .55rem; padding: .44rem 0; border: 0; border-radius: 0; background: none; border-bottom: 1px solid var(--rule); }
+.bench-shell .bench-readouts > div:last-child { border-bottom: 0; }
+.bench-shell .bench-readouts dd { font-size: .83rem; text-align: right; }
 .bench-note { margin: .75rem 0 0; color: var(--muted); font-size: .85rem; line-height: 1.7; }
 #bench-notice { margin: .5rem 0 0; }
 #bench-notice:empty { margin: 0; }
@@ -36,11 +53,18 @@
 .bench-graphs p { margin-bottom: .4rem; }
 #bench-graph { background: #f4fafb; border: 1px solid var(--rule); border-radius: 9px; overflow: hidden; }
 #bench-graph[data-scrub] { cursor: crosshair; }
+@media (min-width: 1050px) {
+  .bench-layout { grid-template-columns: minmax(0, 1fr) minmax(285px, 31%); align-items: start; }
+}
+@media (max-width: 1049px) {
+  .bench-measurements { order: 1; }
+  .bench-guide { order: 2; }
+}
 @media (max-width: 600px) {
   .bench-index { grid-template-columns: minmax(0,1fr); }
   .bench-inputs { grid-template-columns: minmax(0,1fr); }
-  .bench-shell { padding: .85rem; }
+  .bench-panel { padding: .75rem; }
   .bench-camera > span { width: 100%; }
-  .bench-modes { gap: .35rem; }
-  .bench-modes .button { padding-inline: .55rem; }
+  .bench-modes { display: none; }
+  .bench-mode-select { display: block; margin-bottom: .9rem; }
 }

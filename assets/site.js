@@ -37,11 +37,17 @@
   const scoreSection = s => s.topics.reduce((n,_,i)=>n+scoreTopic(s,i),0);
   const topicScore = (s,i) => `答對過 ${scoreTopic(s,i)} / ${topicQuestions(s,i).length} 題`;
   const chapterURL = id => "#course/chapter-"+id;
-  const cards = () => `<div class="chapter-grid">${EM.chapters.map(c=>`<article class="chapter-card ${c.color}">
-    <span class="chapter-number">CHAPTER ${stamp(c.id)}</span>
-    <h3>${c.name}</h3><p>${c.line}</p>
-    <a class="text-link" href="${chapterURL(c.id)}">學習順序 → <span class="progress-note">${byChapter(c.id).filter(s=>learned.has(s.id)).length} / ${byChapter(c.id).length} 節</span></a>
-  </article>`).join("")}</div>`;
+  function cards(onHome=false) {
+    return `<div class="chapter-grid">${EM.chapters.map(chapter=>{
+      const sections=byChapter(chapter.id);
+      const done=sections.filter(s=>learned.has(s.id)).length;
+      return `<article class="chapter-card">
+        <span class="chapter-number">CHAPTER ${stamp(chapter.id)}</span>
+        <h3>${chapter.name}</h3><p>${onHome?chapter.intro:chapter.line}</p>
+        <a class="text-link" href="${chapterURL(chapter.id)}"><span>學習順序 →</span><span class="progress-note">${done} / ${sections.length} 節</span></a>
+      </article>`;
+    }).join("")}</div>`;
+  }
 
   function home() {
     const finished=EM.sections.filter(s=>learned.has(s.id)).length;
@@ -50,22 +56,35 @@
     main.innerHTML=`<section class="home-hero">
       <span class="view-eyebrow">高三・選修物理Ⅳ・電磁學</span>
       <h1>從一個電荷，<br>看懂電與磁。</h1>
-      <p>先觀察現象，再用公式說明，每個概念做兩題檢核。每次讀一小節，慢慢把電與磁串起來。</p>
-      ${link("#course/"+start.id,last?"接著學 →":"從靜電學開始 →","primary")}
-      <p class="progress-note">${last?start.name+"　｜　":""}已自行確認理解 ${finished} / ${EM.sections.length} 節</p>
-      <progress class="learning-progress" aria-label="已自行確認理解的節數" value="${finished}" max="${EM.sections.length}"></progress>
+      <p>先觀察現象，再用公式說明，最後做題檢核。每次讀一小節，把電荷、磁場和感應串起來。</p>
+      <a class="lesson-primary" href="#course/${start.id}">${last?"接著學":"從靜電學開始"} →</a>
+      <div class="lesson-actions"><span class="progress-note">${last?start.name+"　｜　":""}已自行確認理解 ${finished} / ${EM.sections.length} 節</span></div>
+      <div class="learning-progress" role="progressbar" aria-label="已自行確認理解的節數" aria-valuemin="0" aria-valuenow="${finished}" aria-valuemax="${EM.sections.length}"><span style="width:${finished/EM.sections.length*100}%"></span></div>
     </section>
     <div class="study-flow" aria-label="每節學習順序">
       <div><b>01　看現象</b><p>帶著一個問題觀察實驗。</p></div>
       <div><b>02　懂關係</b><p>讀重點與例題，留意公式條件。</p></div>
-      <div><b>03　試著解釋</b><p>做概念練習，再決定是否往下學。</p></div>
+      <div><b>03　試著解釋</b><p>答檢核，再決定是否往下學。</p></div>
     </div>
-    <h2 class="section-title">依照課堂進度，選一章</h2>${cards()}
-    <h2 class="section-title">需要時再用</h2>
-    <div class="tool-shortcuts"><a href="#reference">找公式</a><a href="#labs">做實驗</a><a href="#concepts">練習各概念</a><a href="#practice">做逐章練習卷</a></div>
+    <h2 class="section-title"><span>依照課堂進度，選一章</span></h2>${cards(true)}
+    <h2 class="section-title"><span>需要時再用</span></h2>
+    <div class="tool-shortcuts"><a href="#reference">找公式</a><a href="#labs">做實驗</a><a href="#concepts">練觀念</a><a href="#practice">做逐章練習卷</a></div>
     <details class="lesson-disclosure"><summary>先備工具：常用符號與單位</summary><div class="disclosure-content">
-      <dl class="unit-list"><div><dt>電量 q</dt><dd>庫侖（C）；1 μC = 10⁻⁶ C</dd></div><div><dt>電場 E</dt><dd>牛頓／庫侖（N/C），也可用 V/m</dd></div><div><dt>電位 V</dt><dd>伏特（V）；1 V = 1 J/C</dd></div><div><dt>磁場 B</dt><dd>特斯拉（T）；1 μT = 10⁻⁶ T</dd></div><div><dt>磁通量 Φ</dt><dd>韋伯（Wb）；1 Wb = 1 T·m²</dd></div></dl>
-    </div></details><p class="progress-note">學習與練習紀錄只存在目前瀏覽器。</p>`;
+      <div class="edu-table-container" role="region" aria-label="常用符號與單位表" tabindex="0">
+        <table class="edu-table">
+          <thead><tr><th scope="col">物理量</th><th scope="col">符號・單位</th><th scope="col">怎麼讀</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">電量</th><td>q・C</td><td>表示帶電的多寡與正負。</td></tr>
+            <tr><th scope="row">電場</th><td>E・N/C</td><td>每單位正電量所受的靜電力。</td></tr>
+            <tr><th scope="row">電位</th><td>V・V</td><td>每單位電量所具有的電位能。</td></tr>
+            <tr><th scope="row">磁場</th><td>B・T</td><td>描述磁場的大小和方向。</td></tr>
+            <tr><th scope="row">磁通量</th><td>Φ・Wb</td><td>穿過指定面的磁場通量。</td></tr>
+            <tr><th scope="row">感應電動勢</th><td>ε・V</td><td>由磁通量變化所產生的電動勢。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="progress-note">換單位：1 μC = 10⁻⁶ C，1 cm = 10⁻² m，1 μT = 10⁻⁶ T。代公式前先統一單位。</p>
+    </div></details><p class="progress-note home-local-note">學習與練習紀錄只存在目前瀏覽器。</p>`;
   }
 
   function courseIndex() {

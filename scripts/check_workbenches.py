@@ -38,6 +38,9 @@ def run(base, out):
             assert page.locator(".bench-readouts dd").count() >= 3
             assert page.locator(".bench-inputs [data-param]").count() == len(controls)
             assert not page.locator(".bench-shell").evaluate("(e)=>/NaN|Infinity/.test(e.innerHTML)")
+            assert page.locator("#bench-plot circle").evaluate_all(
+                "(circles)=>circles.every(el=>CSS.supports('color',el.getAttribute('fill')))"
+            ), route
             readings = page.locator("#bench-readouts").inner_text()
             page.get_by_role("button", name="2D 平面").click()
             for plane in ["XY", "XZ", "YZ"]:
@@ -49,6 +52,7 @@ def run(base, out):
             page.locator("#bench-plot svg[data-projection='3d']").wait_for()
 
         go("labs/biot/element")
+        expect("theta", "70.9°")
         plot = page.locator("#bench-plot svg")
         before = plot.inner_html()
         box = plot.bounding_box()
@@ -65,6 +69,11 @@ def run(base, out):
         expect("total", "0 μT")
         page.get_by_role("button", name="垂直", exact=True).click()
         expect("total", "0.313 μT")
+        expect("theta", "90°")
+        page.get_by_role("button", name="2D 平面").click()
+        page.get_by_role("button", name="XY", exact=True).click()
+        page.locator("#bench-plot [data-projection=xy] [data-normal=out]").first.wait_for()
+        page.get_by_role("button", name="3D 空間").click()
         go("labs/biot/pair")
         page.locator("#bench-relative").select_option("1")
         expect("total", "0 μT")
@@ -86,6 +95,24 @@ def run(base, out):
         assert read("work").inner_text() != "0 nJ"
 
         go("labs/potential-map/field-lines")
+        page.get_by_role("button", name="2D 平面").click()
+        page.get_by_role("button", name="XY", exact=True).click()
+        page.locator("#bench-plot [data-projection=xy]").wait_for()
+        assert page.locator("#bench-plot circle:not([data-probe])").count() == 3
+        assert page.locator("#bench-plot svg text").count() == 0
+        box = page.locator("#bench-plot [data-probe]").bounding_box()
+        x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+        page.mouse.move(x, y)
+        page.mouse.down()
+        page.mouse.move(x + 40, y + 15, steps=5)
+        page.mouse.up()
+        page.wait_for_function("Number(document.querySelector('#bench-x').value)>0")
+        assert page.locator("#bench-z").input_value() == "0"
+        page.locator("#bench-vectors").select_option("1")
+        page.locator("#bench-plot svg text").filter(has_text="E").wait_for()
+        page.locator("#bench-vectors").select_option("2")
+        page.locator("#bench-plot svg text").filter(has_text="F").wait_for()
+        assert page.locator("#bench-plot svg text").filter(has_text="E").count() == 0
         field = read("vector").inner_text()
         before = read("force").inner_text()
         page.locator("#bench-test").select_option("-1")
@@ -146,6 +173,10 @@ def run(base, out):
 
         for width in [320, 390, 768, 1024, 1440]:
             page.set_viewport_size({"width": width, "height": 960})
+            if width == 390:
+                go("labs/biot/element")
+                page.get_by_role("combobox", name="實驗情境").select_option("loop")
+                page.wait_for_function("document.querySelector('main').dataset.route==='labs/biot/loop'")
             for route in ["labs", "labs/biot/element", "labs/potential-map/charges", "labs/potential-map/field-lines", "labs/magnetic-force/particle",
                           "labs/particle-apps/cyclotron", "labs/particle-apps/aurora", "labs/induction/transformer", "labs/em-wave/plane-wave"]:
                 go(route)

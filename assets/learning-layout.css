@@ -72,15 +72,7 @@ body { display: flex; min-height: 100vh; line-height: 1.6; }
   display: inline-block; margin: 0; border: 1px solid #b5dfe2; border-radius: 99px; padding: .2rem .58rem;
   background: #deeeee; color: var(--accent); font: 750 .72rem/1.5 var(--body); letter-spacing: .07em;
 }
-.home-hero { padding-bottom: 3.8rem; }
-.home-hero h1 { max-width: none; margin: 1.25rem 0 .9rem; font-size: clamp(1.9rem,3.4vw,2.7rem); line-height: 1.35; letter-spacing: -.025em; font-weight: 850; }
-.home-hero > p:not(.progress-note) { max-width: 52ch; margin: .7rem 0 1.1rem; color: var(--muted); font-size: .94rem; line-height: 1.8; }
 .progress-note { color: var(--muted); font-size: .8rem; }
-.home-hero .progress-note { margin: 1rem 0 .45rem; }
-.learning-progress { display: block; appearance: none; border: 0; width: 100%; height: 5px; margin: .65rem 0 .4rem; border-radius: 6px; background: #dfebe6; overflow: hidden; }
-.learning-progress::-webkit-progress-bar { background: #dfebe6; }
-.learning-progress::-webkit-progress-value { background: #238378; }
-.learning-progress::-moz-progress-bar { background: #238378; }
 .study-flow { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border: 1px solid var(--rule); border-radius: 12px; background: #edf4f1; margin: 0 0 1.8rem; }
 .study-flow > div { min-width: 0; padding: 1rem 1.1rem; }
 .study-flow b { font-size: .88rem; }
@@ -150,10 +142,6 @@ body { display: flex; min-height: 100vh; line-height: 1.6; }
 .node-list p { font-size: .83rem; color: var(--muted); margin: .25rem 0 0; }
 .node-status { font-size: .76rem; color: var(--accent); min-width: 2rem; padding-top: .2rem; }
 .concept-filters { display: flex; flex-wrap: wrap; gap: .6rem; }
-.unit-list { margin: 0; font-size: .9rem; }
-.unit-list > div { display: grid; grid-template-columns: minmax(4.5rem,.3fr) minmax(0,1fr); gap: .6rem; padding: .45rem 0; border-bottom: 1px solid var(--rule); }
-.unit-list dt { font-weight: 700; }
-.unit-list dd { margin: 0; }
 .lab-observation { border-left: 3px solid #478e80; margin-bottom: 1rem; padding: .8rem 1rem; background: #eaf3ef; font-size: .9rem; }
 .lab-observation strong { display: block; color: var(--accent); font-size: .76rem; }
 .lab-observation p { margin: .3rem 0 0; }
@@ -200,7 +188,7 @@ body { display: flex; min-height: 100vh; line-height: 1.6; }
   .lesson-goal, .observe-card, .worked-example, .formula-card, .concept-card, .lesson-check { padding: 1rem; }
   .disclosure-content { padding: .65rem; }
   .node-list a { padding: .8rem; gap: .65rem; }
-  .home-hero > .button, .observe-card > .button { width: 100%; }
+  .observe-card > .button { width: 100%; }
   .lab-shell.lab-layout { padding: .85rem; }
   .lab-shell .lab-controls form { grid-template-columns: minmax(0,1fr); }
 }
