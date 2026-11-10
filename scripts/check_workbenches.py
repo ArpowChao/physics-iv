@@ -74,7 +74,7 @@ def run(base, out):
             assert page.locator(".bench-inputs [data-param]").count() == len(controls)
             assert not page.locator(".bench-shell").evaluate("(e)=>/NaN|Infinity/.test(e.innerHTML)")
             assert not page.get_by_role("checkbox", name="分析標註").is_checked()
-            assert page.locator("#bench-plot svg text, #bench-plot [data-normal]").count() == 0
+            assert page.locator("#bench-plot .bench-plot-label, #bench-plot [data-normal]").count() == 0
             assert page.locator("#bench-plot circle").evaluate_all(
                 r"""(circles)=>circles.every(el=>{
                     const fill=el.getAttribute('fill'), gradient=/^url\(#([\w-]+)\)$/.exec(fill);
@@ -147,7 +147,9 @@ def run(base, out):
         expect("work", "0 nJ")
         val("x", 4)
         page.wait_for_function("!document.querySelector('[data-reading=work]').textContent.startsWith('0 nJ')")
-        assert page.locator("#bench-graph svg").count() == 1
+        page.get_by_role("button", name="沿軸剖面圖").click()
+        page.locator("#bench-plot[data-dimension=profile] svg:not([data-projection])").wait_for()
+        page.get_by_role("button", name="等電位線", exact=True).click()
         page.get_by_role("button", name="2D 平面").click()
         page.get_by_role("button", name="YZ", exact=True).click()
         expect("slice", "x = 4 cm")
@@ -160,11 +162,20 @@ def run(base, out):
         facts = page.locator(".bench-electro-facts")
         page.wait_for_function("document.querySelector('.bench-electro-facts').textContent.includes('23.56')")
         assert all(text in facts.inner_text() for text in ["10 條","2 條","8 條"])
-        page.locator("#bench-plot [data-landmark=electric-null]").wait_for()
+        key=page.locator("#bench-plot [data-field-key]")
+        assert all(text in key.text_content() for text in ["Q₁ 10 條","相連 2 條","通往無窮遠 8 條","23.56"])
         page.get_by_role("button", name="遠場", exact=True).click()
-        page.get_by_role("button", name="沿軸剖面").click()
-        assert page.locator("#bench-graph [data-axis-zero]").count() == 2
-        page.get_by_role("button", name="近場", exact=True).click()
+        page.get_by_role("button",name="只看相連線").click()
+        assert page.get_by_role("button", name="近場", exact=True).get_attribute("aria-pressed")=="true"
+        page.wait_for_function("document.querySelectorAll('#bench-plot polyline[stroke=\"#b05219\"][stroke-width=\"2.45\"]').length===2 && !document.querySelector('#bench-plot polyline[stroke=\"#377b76\"]')")
+        page.get_by_role("button",name="顯示全部線").click()
+        page.locator("#bench-plot [data-landmark=electric-null]").wait_for()
+        page.get_by_role("button", name="沿軸剖面圖").click()
+        assert page.get_by_role("button", name="遠場", exact=True).get_attribute("aria-pressed")=="true"
+        page.locator("#bench-plot[data-dimension=profile] svg:not([data-projection])").wait_for()
+        assert page.locator("#bench-plot [data-axis-zero]").count() == 2
+        page.get_by_role("button", name="電力線", exact=True).click()
+        assert page.get_by_role("button", name="近場", exact=True).get_attribute("aria-pressed")=="true"
         page.get_by_role("button", name="3D 空間").click()
         page.locator("#bench-plot svg[data-projection='3d']").wait_for()
         plot = page.locator("#bench-plot svg")
@@ -174,7 +185,7 @@ def run(base, out):
         assert "10 條" in facts.inner_text()
         page.get_by_role("button",name="正視切面數線").click()
         assert page.locator(".bench-depth select").input_value()=="section"
-        page.get_by_role("button", name="電位地形", exact=True).click()
+        page.get_by_role("button", name="3D 電位地形", exact=True).click()
         page.locator("#bench-plot [data-potential-surface]").wait_for()
         assert page.locator(".bench-depth select").is_hidden()
         page.get_by_role("button", name="電力線", exact=True).click()
@@ -201,7 +212,7 @@ def run(base, out):
         page.get_by_role("button", name="XY", exact=True).click()
         page.locator("#bench-plot [data-projection=xy]").wait_for()
         assert page.locator("#bench-plot circle:not([data-probe])").count() == 3
-        assert page.locator("#bench-plot svg text").count() == 0
+        assert page.locator("#bench-plot .bench-plot-label").count() == 0
         box = page.locator("#bench-plot [data-probe]").bounding_box()
         x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
         page.mouse.move(x, y)
@@ -211,10 +222,10 @@ def run(base, out):
         page.wait_for_function("Number(document.querySelector('#bench-x').value)>0")
         assert page.locator("#bench-z").input_value() == "0"
         page.locator("#bench-vectors").select_option("1")
-        page.locator("#bench-plot svg text").filter(has_text="E").wait_for()
+        page.locator("#bench-plot .bench-plot-label").filter(has_text="E").wait_for()
         page.locator("#bench-vectors").select_option("2")
-        page.locator("#bench-plot svg text").filter(has_text="F").wait_for()
-        assert page.locator("#bench-plot svg text").filter(has_text="E").count() == 0
+        page.locator("#bench-plot .bench-plot-label").filter(has_text="F").wait_for()
+        assert page.locator("#bench-plot .bench-plot-label").filter(has_text="E").count() == 0
         field = read("vector").inner_text()
         before = read("force").inner_text()
         page.locator("#bench-test").select_option("-1")

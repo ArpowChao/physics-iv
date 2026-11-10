@@ -58,7 +58,7 @@
 .bench-view-hint { margin: .35rem 0 0; font-size: .76rem; }
 .bench-plot { overflow: hidden; background: #f4fafb; border: 1px solid #d4e4e7; border-radius: 12px; cursor: grab; touch-action: none; }
 .bench-plot:active { cursor: grabbing; }
-.bench-plot[data-dimension="2d"] { cursor: default; touch-action: auto; }
+.bench-plot:is([data-dimension="2d"],[data-dimension="profile"]) { cursor: default; touch-action: auto; }
 .bench-plot[data-editable="true"] [data-probe] { cursor: move; touch-action: none; }
 .bench-shell [hidden] { display: none; }
 .bench-plot svg, .bench-graphs svg { display: block; width: 100%; height: auto; font-family: var(--body); }
@@ -67,6 +67,7 @@
 .bench-scene-caption { margin: .55rem 0; color: var(--muted); font-size: .86rem; line-height: 1.6; }
 .bench-electro-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .42rem .85rem; margin-top: .65rem; }
 .bench-electro-tools .button { min-height: 40px; padding: .34rem .64rem; }
+.bench-electro-tabs { flex-basis: 100%; }
 .bench-depth { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .35rem; min-width: 0; font-size: .84rem; }
 .bench-depth select { min-height: 40px; max-width: 100%; }
 .bench-electro-facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,136px),1fr)); gap: .35rem; margin: .55rem 0 0; }

@@ -38,6 +38,7 @@
     const toward=cross(right,up);
     const proj=point=>[W/2+scale*dot(point,right),H/2-scale*dot(point,up)];
     const theme=camera.theme||"lab", tags=[], probes=[];
+    let topBand="";
     const art=EM.makeWorkbenchArt({width:W,height:H,theme,project:proj,scale,toward,append:markup=>{out+=markup;}});
     let out=art.backdrop();
     const color=c=>art.dark?(darkColors.get(c)||c):c;
@@ -101,6 +102,18 @@
       const loop=nodes=>"M"+nodes.map(p=>proj(p).join(",")).join("L")+"Z";
       out+=`<path d="${loop(outer)}${loop(inner)}" fill="${fill}" fill-rule="evenodd"/>`;
     }
+    function fieldKey(pair,zeroLabel){
+      const distant=pair.net<0?"由無窮遠進入":"通往無窮遠";
+      const key=(x,label,c)=>`<path d="M${x} -17h20" stroke="${c}" stroke-width="4" stroke-linecap="round"/><text x="${x+29}" y="-11" fill="${C.ink}">${txt(label)}</text>`;
+      topBand=`<g data-field-key="true" font-size="19" font-weight="650">
+        <rect x="0" y="-62" width="${W}" height="62" fill="#fffdf8"/>
+        <path d="M0 -.5h${W}" stroke="#cad7d5"/>
+        <text x="16" y="-38" fill="${C.ink}">Q₁ ${pair.counts[0]} 條　 Q₂ ${pair.counts[1]} 條</text>
+        <text x="${W-16}" y="-38" text-anchor="end" fill="${C.violet}">${txt(pair.x===null?zeroLabel:"E = 0　"+zeroLabel)}</text>
+        ${key(18,"相連 "+lineCount(pair.joined),linkedLine)}
+        ${key(216,distant+" "+lineCount(2*Math.abs(pair.net))+(camera.electroLinkedOnly?"（暫藏）":""),distantLine)}
+      </g>`;
+    }
     const g=extent*.85;
     if(grid&&camera.grid!==false){
       for(let i=-4;i<=4;i++){
@@ -113,7 +126,7 @@
       const activeAxes=plane?axes:[0,1,2];
       activeAxes.forEach(axis=>arrow(zero,zero.map((_,i)=>i===axis?g:0),C.muted,1.1,camera.labels?"xyz"[axis]:"",true));
     }
-    return {...art,draw,polygon,arrow,dot:mark,probe,charge,landmark,surface,annulus,project:proj,scale,finish(){
+    return {...art,draw,polygon,arrow,dot:mark,probe,charge,landmark,surface,annulus,fieldKey,project:proj,scale,finish(){
       // Keep vector tags readable and inside the viewport; place overlapping labels on nearby rows.
       const used=[];
       const labels=tags.map(([[x,y],text,color])=>{
@@ -125,7 +138,7 @@
         return `<text x="${px+5}" y="${py+1}" class="bench-plot-label" font-size="15" fill="${color}">${txt(text)}</text>`;
       }).join("");
       const view=plane?camera.plane.toUpperCase()+" 平面投影":"3D 空間";
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" data-theme="${theme}" data-projection="${camera.plane||"3d"}" data-right="${right}" data-up="${up}" data-scale="${scale}" role="img" aria-label="${txt(view+"・"+label)}">${out}${labels}${probes.join("")}</svg>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${topBand?-62:0} ${W} ${H+(topBand?62:0)}" data-theme="${theme}" data-projection="${camera.plane||"3d"}" data-right="${right}" data-up="${up}" data-scale="${scale}" role="img" aria-label="${txt(view+"・"+label)}">${out}${labels}${probes.join("")}${topBand}</svg>`;
     }};
   }
   function chart(xmax,series,at,xlabel="時間 t（s）",xmin=0){
@@ -257,15 +270,17 @@
   const chargeControls=[ctl("q","左側電荷 Q₁",-12,12,1,6,"nC"),ctl("q2","右側電荷 Q₂",-12,12,1,-6,"nC"),
     ctl("spacing","電荷間距",6,28,1,18,"cm"),...xyz(0,8,2)];
   const pairMode=mode=>mode==="charges"||mode==="field-lines";
+  const linkedLine="#b05219", distantLine="#377b76";
   const fieldPlane=([x,y],angle)=>[x,y*Math.cos(angle),y*Math.sin(angle)];
   const lineCount=n=>n+" 條";
   const electricExtent=(mode,camera,pair)=>camera.electroRange==="far"?
     Math.max(mode==="cavity"?120:100,Math.abs(pair?.x??0)*1.24):mode==="cavity"?33:25;
   let streamlineCache;
 
-  function drawStream(s,points,camera,extent,sign,guide=false){
+  function drawStream(s,points,camera,extent,sign,guide=false,color=C.teal){
     const split=!camera.plane&&camera.electroDepth!=="section";
-    if(!split)s.draw(points,C.teal,1.45);
+    const width=color===linkedLine?2.45:1.45;
+    if(!split)s.draw(points,color,width);
     else{
       const opacity=front=>guide?(front?.21:.10):front?.95:camera.electroDepth==="front"?0:.33;
       let run=[points[0]], front=s.depth(points[0])>=0;
@@ -273,13 +288,13 @@
         const next=points[i], before=points[i-1], depth=s.depth(next), nextFront=depth>=0;
         if(nextFront!==front){
           const cut=sum(next,mul(sub(before,next),depth/(depth-s.depth(before))));
-          if(opacity(front))s.draw([...run,cut],C.teal,guide?1:1.55,undefined,opacity(front));
+          if(opacity(front))s.draw([...run,cut],color,guide?1:width,undefined,opacity(front));
           run=[cut];
           front=nextFront;
         }
         run.push(next);
       }
-      if(opacity(front))s.draw(run,C.teal,guide?1:1.55,undefined,opacity(front));
+      if(opacity(front))s.draw(run,color,guide?1:width,undefined,opacity(front));
     }
     if(guide)return;
     const total=points.length;
@@ -287,7 +302,7 @@
       const a=points[i-2],b=points[i], [x,y]=s.project(b);
       if(x<24||x>536||y<23||y>367||length(sub(s.project(a),[x,y]))<6)continue;
       if(length(sub(b,points[0]))<extent*.12||(split&&s.depth(b)<0))continue;
-      s.arrow(sign>0?a:b,sign>0?b:a,C.teal,1.15,undefined,true);
+      s.arrow(sign>0?a:b,sign>0?b:a,color,1.15,undefined,true);
       break;
     }
   }
@@ -336,15 +351,25 @@
         streamlineCache={key,paths:cavity?P.cavityStreamlines(p,far):P.electricStreamlines(p,far)};
       }
       const {paths}=streamlineCache;
-      const layer=(angle,guide)=>paths.forEach(({points,sign},i)=>{
-        if(guide&&i%Math.max(2,Math.ceil(paths.length/5))!==0)return;
+      const layer=(angle,guide,selected,color)=>selected.forEach(({points,sign},i)=>{
+        if(guide&&i%Math.max(2,Math.ceil(selected.length/5))!==0)return;
         for(const side of [-1,1]){
           const trace=points.map(([x,y])=>fieldPlane([x,side*y],angle));
-          drawStream(s,trace,camera,extent,sign,guide);
+          drawStream(s,trace,camera,extent,sign,guide,color);
         }
       });
-      if(spatial)layer(Math.PI/2,true);
-      layer(main,false);
+      if(pair){
+        const linked=paths.filter(path=>path.end!==null);
+        if(!camera.electroLinkedOnly){
+          const distant=paths.filter(path=>path.end===null);
+          if(spatial)layer(Math.PI/2,true,distant,distantLine);
+          layer(main,false,distant,distantLine);
+        }
+        layer(main,false,linked,linkedLine);
+      }else{
+        if(spatial)layer(Math.PI/2,true,paths,C.teal);
+        layer(main,false,paths,C.teal);
+      }
       const charges=cavity?[[p.offset,p.q],[shape.external,p.q2]]:pair?[[-p.spacing/2,p.q],[p.spacing/2,p.q2]]:[];
       const radius=camera.electroRange==="far"?clamp(s.scale*(p.spacing??shape.external)*.26,4.5,9):10;
       charges.filter(([,q])=>q).sort(([a],[b])=>s.depth([a,0,0])-s.depth([b,0,0]))
@@ -526,6 +551,7 @@
       if(pair){
         const boundary=2*Math.abs(pair.net);
         const zeroLabel=pair.all?"各處皆為零":pair.x===null?"無有限零點":"x = "+fmt(pair.x,2)+" cm";
+        if(view==="lines"&&camera.plane!=="yz")s.fieldKey(pair,zeroLabel);
         rows.push(item("q1-lines","Q₁ 出入的線",lineCount(pair.counts[0])),item("q2-lines","Q₂ 出入的線",lineCount(pair.counts[1])),
           item("joined","連接兩電荷",lineCount(pair.joined)),item("null","電場零點",zeroLabel));
         if(view==="lines")facts.push(["Q₁",fmt(p.q)+" nC · "+lineCount(pair.counts[0])],["Q₂",fmt(p.q2)+" nC · "+lineCount(pair.counts[1])],
@@ -551,10 +577,14 @@
       }
       if(view==="lines"&&mode==="cavity")caption+=" 藍色環是接地金屬的剖面，中央是空腔。";
       if(view==="lines"&&mode==="sphere")caption+=" 藍色圓面是金屬球的剖面。";
+      if(view==="lines"&&pair&&camera.electroLinkedOnly&&camera.plane!=="yz"){
+        caption+=pair.joined?" 目前只顯示橘色相連線。":" 這組電荷的相連線數為 0。";
+      }
       if(terrain?.uniform!==null&&terrain?.uniform!==undefined)caption+=" 整個切面的電位同為 "+fmt(terrain.uniform)+" V。";
       if(camera.electroRange==="far"&&pair&&!pair.all)caption+=pair.net?" 遠處的電場主要由總電量 "+fmt(pair.net)+" nC 決定。":" 遠處呈電偶極分布，電場隨距離衰減得更快。";
       const legend=view==="surface"?[[C.red,"正電位"],[C.blue,"負電位"],[C.ink,"V = 0"]]:
-        view==="lines"?[[C.teal,"電力線"],...(p.vectors===1?[[C.blue,"電場 E"]]:p.vectors===2?[[C.violet,"靜電力 F"]]:[])]:
+        view==="lines"?[...(pair&&camera.plane!=="yz"?[]:[[C.teal,"電力線"]]),
+          ...(p.vectors===1?[[C.blue,"電場 E"]]:p.vectors===2?[[C.violet,"靜電力 F"]]:[])]:
           [[C.amber,"正電位線"],[C.blue,"負電位線"],[C.violet,"0 V 線"]];
       const vals=mode==="plates"?sample(160,u=>{const x=-28+56*u;return [x,P.electro(mode,p,[x,p.y,p.z]).v];}):null;
       const graph=vals?chart(28,[{name:"沿 x 的電位",unit:"V",values:vals,color:C.teal}],p.x,"x（cm）",-28):axisProfile(mode,p,camera,extent,pair);
