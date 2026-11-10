@@ -65,6 +65,14 @@
 .bench-plot-label { paint-order: stroke; stroke: #f4fafb; stroke-width: 2.5px; stroke-linejoin: round; }
 .bench-plot svg:not([data-theme="lab"]) .bench-plot-label { stroke: #102335; }
 .bench-scene-caption { margin: .55rem 0; color: var(--muted); font-size: .86rem; line-height: 1.6; }
+.bench-electro-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .42rem .85rem; margin-top: .65rem; }
+.bench-electro-tools .button { min-height: 40px; padding: .34rem .64rem; }
+.bench-depth { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .35rem; min-width: 0; font-size: .84rem; }
+.bench-depth select { min-height: 40px; max-width: 100%; }
+.bench-electro-facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,136px),1fr)); gap: .35rem; margin: .55rem 0 0; }
+.bench-electro-facts > div { min-width: 0; padding: .4rem .55rem; border: 1px solid var(--rule); border-radius: 6px; background: #fff; }
+.bench-electro-facts dt { color: var(--muted); font-size: .76rem; font-weight: 700; }
+.bench-electro-facts dd { margin: 0; font-size: .84rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .bench-display-options { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; margin-top: .55rem; color: var(--muted); font-size: .8rem; }
 .bench-display-options label { cursor: pointer; }
 .bench-display-options input { accent-color: var(--accent); vertical-align: middle; }

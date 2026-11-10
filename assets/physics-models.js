@@ -47,23 +47,60 @@
       const r=length(point);
       return {v:9000*p.q/Math.max(r,p.radius),e:!p.q||r<p.radius?zero:r===p.radius?null:mul(point,900000*p.q/r**3)};
     }
-    const sources=[[-p.spacing/2,0,0,p.q],[p.spacing/2,0,0,p.q2]];
+    if(mode==="cavity"){
+      const {inner,outer,inside,outside}=cavityGeometry(p), r=length(point);
+      if(Math.abs(r-inner)<1e-8)return {v:0,e:p.q?null:zero};
+      if(Math.abs(r-outer)<1e-8)return {v:0,e:p.q2?null:zero};
+      if(r>inner&&r<outer)return {v:0,e:zero};
+      if(r>outer)return axialElectro(outside,point);
+      const result=axialElectro(inside,point);
+      if(result&&p.offset===0)result.v-=9000*p.q/inner;
+      return result;
+    }
+    return axialElectro(pairSources(p),point);
+  }
+  const pairSources=p=>[{x:-p.spacing/2,q:p.q},{x:p.spacing/2,q:p.q2}].filter(s=>s.q);
+  function cavityGeometry(p){
+    const inner=8,outer=13,external=26,inside=[],outside=[];
+    // Each Kelvin image is outside the vacuum region where its solution applies.
+    if(p.q){
+      inside.push({x:p.offset,q:p.q});
+      if(p.offset)inside.push({x:inner**2/p.offset,q:-p.q*inner/p.offset});
+    }
+    if(p.q2)outside.push({x:external,q:p.q2},{x:outer**2/external,q:-p.q2*outer/external});
+    return {inner,outer,external,inside,outside};
+  }
+  function axialElectro(sources,point){
     let v=0,e=zero;
-    for(const [x,y,z,q] of sources){
-      if(!q)continue;
-      const r=sub(point,[x,y,z]), d=length(r);
+    for(const {x,q} of sources){
+      const r=sub(point,[x,0,0]), d=length(r);
       if(d<.45)return null;
       v+=9000*q/d;
       e=sum(e,mul(r,900000*q/d**3));
     }
     return {v,e};
   }
-  function electricStreamlines(p){
-    const sources=[{x:-p.spacing/2,q:p.q},{x:p.spacing/2,q:p.q2}].filter(s=>s.q);
-    const opposed=sources.length===2&&p.q*p.q2<0;
+  function electricPair(p){
+    const a=Math.sqrt(Math.abs(p.q)),b=Math.sqrt(Math.abs(p.q2)),half=p.spacing/2;
+    const opposed=p.q*p.q2<0, net=p.q+p.q2;
+    const x=!a||!b||(opposed&&a===b)?null:half*(opposed?(a+b)/(a-b):(a-b)/(a+b));
+    const joined=opposed?2*Math.min(Math.abs(p.q),Math.abs(p.q2)):0;
+    const absQ=Math.abs(p.q), absQ2=Math.abs(p.q2);
+    const potentialZeroes=opposed?[half*(absQ-absQ2)/(absQ+absQ2),...(net?[half*(absQ+absQ2)/(absQ-absQ2)]:[])]:[];
+    return {x,all:!a&&!b,net,joined,counts:[2*absQ,2*absQ2],potentialZeroes};
+  }
+  function electricStreamlines(p,bound=110){
+    return axialStreamlines(pairSources(p),bound);
+  }
+  function cavityStreamlines(p,bound){
+    const {inner,outer,inside,outside}=cavityGeometry(p);
+    return [...axialStreamlines(inside,bound,{radius:inner,enter:false}),...axialStreamlines(outside,bound,{radius:outer,enter:true})];
+  }
+  function axialStreamlines(sources,bound,boundary){
+    const opposed=sources.length===2&&sources[0].q*sources[1].q<0;
     // For opposite charges all connecting lines can be traced from the larger charge.
-    const origins=opposed?[sources.reduce((a,b)=>Math.abs(a.q)>=Math.abs(b.q)?a:b)]:sources;
-    const seedRadius=.5, stopRadius=.25, bound=110;
+    const origins=boundary?sources.slice(0,1):opposed?[sources.reduce((a,b)=>Math.abs(a.q)>=Math.abs(b.q)?a:b)]:sources;
+    const seedRadius=.5, stopRadius=.25;
     function field([x,y]){
       let fx=0,fy=0;
       for(const source of sources){
@@ -80,7 +117,7 @@
       for(let i=0;i<count;i++){
         const cosine=1-2*(i+.5)/count;
         const level=source.q*cosine+(other?other.q*Math.sign(source.x-other.x):0);
-        const connecting=opposed&&Math.abs(level-source.q*Math.sign(other.x-source.x))<Math.abs(other.q);
+        const connecting=!boundary&&opposed&&Math.abs(level-source.q*Math.sign(other.x-source.x))<Math.abs(other.q);
         // Place each seed at the midpoint of an equal-flux band.
         let low=-1, high=1;
         for(let j=0;j<27;j++){
@@ -95,13 +132,26 @@
         for(let j=0;j<1200;j++){
           const nearest=Math.min(...sources.map(s=>Math.hypot(point[0]-s.x,point[1])));
           const outside=length(point)>bound;
-          const step=clamp(nearest*.12,.025,outside?3:.75), tangent=mul(unit(field(point)),sign);
+          const step=clamp(nearest*.12,.025,Math.max(.75,length(point)*.025)), tangent=mul(unit(field(point)),sign);
           if(length(tangent)<.5||(outside&&!connecting))break;
           const mid=sum(point,mul(tangent,step/2));
-          point=sum(point,mul(unit(field(mid)),step*sign));
+          const next=sum(point,mul(unit(field(mid)),step*sign));
+          if(boundary&&(length(next)<boundary.radius)===boundary.enter){
+            let low=0,high=1;
+            const delta=sub(next,point);
+            for(let k=0;k<22;k++){
+              const t=(low+high)/2;
+              if((length(sum(point,mul(delta,t)))<boundary.radius)===boundary.enter)high=t;
+              else low=t;
+            }
+            points.push(sum(point,mul(delta,(low+high)/2)));
+            end=boundary.radius;
+            break;
+          }
+          point=next;
           if(point[1]<=0)break;
           points.push(point);
-          if(opposed&&Math.hypot(point[0]-other.x,point[1])<stopRadius){
+          if(!boundary&&opposed&&Math.hypot(point[0]-other.x,point[1])<stopRadius){
             end=other.x;
             points.push([end,0]);
             break;
@@ -287,7 +337,7 @@
     const at=x=>Math.sin(TAU*(x/wavelength-p.phase/100));
     return {c,wavelength,electric,magnetic,at};
   }
-  const api={sum,mul,sub,dot,cross,length,unit,clamp,rad,TAU,zero,sample,direction,line,ring,biot,electro,electricStreamlines,magnetic,induction,magnetFlux,linearAcceleration,cyclotron,aurora,transformer,emWave};
+  const api={sum,mul,sub,dot,cross,length,unit,clamp,rad,TAU,zero,sample,direction,line,ring,biot,electro,electricPair,electricStreamlines,cavityGeometry,cavityStreamlines,magnetic,induction,magnetFlux,linearAcceleration,cyclotron,aurora,transformer,emWave};
   globalThis.EMPhysics=api;
   if(typeof module!=="undefined")module.exports=api;
 })();

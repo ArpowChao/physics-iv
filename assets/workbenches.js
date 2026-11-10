@@ -41,7 +41,10 @@
     const art=EM.makeWorkbenchArt({width:W,height:H,theme,project:proj,scale,toward,append:markup=>{out+=markup;}});
     let out=art.backdrop();
     const color=c=>art.dark?(darkColors.get(c)||c):c;
-    const draw=(nodes,c,w,d)=>{out+=path(nodes.map(proj),color(c),w,d);};
+    const draw=(nodes,c,w,d,opacity=1)=>{
+      const line=path(nodes.map(proj),color(c),w,d);
+      out+=opacity===1?line:`<g opacity="${opacity}">${line}</g>`;
+    };
     const polygon=(nodes,fill,opacity=.17)=>{out+=`<polygon points="${nodes.map(x=>proj(x).join(",")).join(" ")}" fill="${color(fill)}" opacity="${opacity}"/>`;};
     const arrow=(a,b,c,w=2.3,tag,always=false)=>{
       if(!camera.analysis&&!always)return;
@@ -73,10 +76,30 @@
       if(tag&&camera.labels)tags.push([[x,y],tag,color(C.ink)]);
       probes.push(`<circle cx="${x}" cy="${y}" r="15" fill="transparent" data-probe="true"/>`);
     }
-    function charge(v,positive){
+    function charge(v,positive,r=10){
+      const [x,y]=proj(v), arm=r*.4;
+      art.orb(v,r/scale,positive?"red":"blue");
+      out+=`<path d="M${x-arm} ${y}h${2*arm}${positive?` M${x} ${y-arm}v${2*arm}`:""}" stroke="#fff" stroke-width="${r*.17}" stroke-linecap="round"/>`;
+    }
+    function landmark(v,tag,c,kind){
       const [x,y]=proj(v);
-      art.orb(v,10/scale,positive?"red":"blue");
-      out+=`<path d="M${x-4} ${y}h8${positive?` M${x} ${y-4}v8`:""}" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>`;
+      if(x<8||x>W-8||y<8||y>H-8)return;
+      out+=`<path data-landmark="${kind}" d="M${x} ${y-6}l6 6-6 6-6-6Z" fill="#fff" stroke="${c}" stroke-width="2"/>`;
+      tags.push([[x,y],tag,c]);
+    }
+    function surface(faces){
+      const sorted=faces.map(([nodes,fill])=>({nodes,fill,depth:nodes.reduce((n,p)=>n+dot(p,toward),0)/nodes.length}));
+      sorted.sort((a,b)=>a.depth-b.depth);
+      out+='<g data-potential-surface="true">';
+      for(const {nodes,fill} of sorted){
+        const vertices=nodes.map(p=>proj(p).map(x=>x.toFixed(2)).join(",")).join(" ");
+        out+=`<polygon points="${vertices}" fill="${fill}" stroke="#243347" stroke-opacity=".13" stroke-width=".5"/>`;
+      }
+      out+="</g>";
+    }
+    function annulus(outer,inner,fill){
+      const loop=nodes=>"M"+nodes.map(p=>proj(p).join(",")).join("L")+"Z";
+      out+=`<path d="${loop(outer)}${loop(inner)}" fill="${fill}" fill-rule="evenodd"/>`;
     }
     const g=extent*.85;
     if(grid&&camera.grid!==false){
@@ -90,7 +113,7 @@
       const activeAxes=plane?axes:[0,1,2];
       activeAxes.forEach(axis=>arrow(zero,zero.map((_,i)=>i===axis?g:0),C.muted,1.1,camera.labels?"xyz"[axis]:"",true));
     }
-    return {...art,draw,polygon,arrow,dot:mark,probe,charge,finish(){
+    return {...art,draw,polygon,arrow,dot:mark,probe,charge,landmark,surface,annulus,project:proj,scale,finish(){
       // Keep vector tags readable and inside the viewport; place overlapping labels on nearby rows.
       const used=[];
       const labels=tags.map(([[x,y],text,color])=>{
@@ -108,14 +131,15 @@
   function chart(xmax,series,at,xlabel="時間 t（s）",xmin=0){
     const W=560,H=series.length*112+33,L=89,R=535, span=xmax-xmin, X=x=>L+(R-L)*(x-xmin)/span;
     let out="";
-    series.forEach(({values,name,unit,color,absolute=false},i)=>{
+    series.forEach(({values,name,unit,color,absolute=false,zeroes=[]},i)=>{
       const amplitude=Math.max(0,...values.filter(([,v])=>Number.isFinite(v)).map(([,v])=>Math.abs(v))), high=amplitude||1, y=26+112*i;
       const min=absolute?0:-high, max=high;
       const Y=n=>y+74-(n-min)/(max-min)*74;
       for(const f of [0,.25,.5,.75,1])out+=path([[X(xmin+span*f),y],[X(xmin+span*f),y+74]],C.grid,1);
       out+=path([[L,Y(0)],[R,Y(0)]],C.muted,1)+path([[L,y],[R,y]],C.grid,1);
       out+=`<text x="12" y="${y-9}" fill="${color}" font-size="16" font-weight="700">${txt(name)}（${txt(unit)}）</text>`;
-      if(amplitude)out+=`<text x="82" y="${y+10}" text-anchor="end" fill="${C.muted}" font-size="15">${fmt(high,5)}</text>${min<0?`<text x="82" y="${y+78}" text-anchor="end" fill="${C.muted}" font-size="15">${fmt(-high,5)}</text>`:""}`;
+      const tick=high>=100000||high<.001?high.toExponential(1):fmt(high,high>=10?1:3);
+      if(amplitude)out+=`<text x="82" y="${y+10}" text-anchor="end" fill="${C.muted}" font-size="15">${tick}</text>${min<0?`<text x="82" y="${y+78}" text-anchor="end" fill="${C.muted}" font-size="15">−${tick}</text>`:""}`;
       out+=`<text x="82" y="${Y(0)+5}" text-anchor="end" fill="${C.muted}" font-size="15">0</text>`;
       let run=[];
       for(const [t,n] of values) {
@@ -123,7 +147,10 @@
         else{out+=path(run,color,2.6);run=[];}
       }
       out+=path(run,color,2.6);
-      if(Number.isFinite(at))out+=path([[X(at),y],[X(at),y+74]],C.ink,1.1,"4 4");
+      if(Number.isFinite(at)&&at>=xmin&&at<=xmax)out+=path([[X(at),y],[X(at),y+74]],C.ink,1.1,"4 4");
+      for(const z of zeroes.filter(z=>z>=xmin&&z<=xmax)){
+        out+=`<circle data-axis-zero="true" cx="${X(z)}" cy="${Y(0)}" r="4.5" fill="#fff" stroke="${color}" stroke-width="2"><title>x = ${fmt(z,2)} cm</title></circle>`;
+      }
     });
     for(const f of [0,.25,.5,.75,1])out+=`<text x="${X(xmin+span*f)}" y="${H-22}" text-anchor="middle" fill="${C.muted}" font-size="13">${fmt(xmin+span*f,2)}</text>`;
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" data-start="${L/W}" data-end="${R/W}" role="img" aria-label="${txt(series.map(s=>s.name).join("、")+"對"+xlabel+"的圖；虛線是目前位置")}">${out}<text x="${R}" y="${H-3}" text-anchor="end" fill="${C.muted}" font-size="15">${txt(xlabel)}</text></svg>`;
@@ -229,123 +256,310 @@
   };
   const chargeControls=[ctl("q","左側電荷 Q₁",-12,12,1,6,"nC"),ctl("q2","右側電荷 Q₂",-12,12,1,-6,"nC"),
     ctl("spacing","電荷間距",6,28,1,18,"cm"),...xyz(0,8,2)];
+  const pairMode=mode=>mode==="charges"||mode==="field-lines";
+  const fieldPlane=([x,y],angle)=>[x,y*Math.cos(angle),y*Math.sin(angle)];
+  const lineCount=n=>n+" 條";
+  const electricExtent=(mode,camera,pair)=>camera.electroRange==="far"?
+    Math.max(mode==="cavity"?120:100,Math.abs(pair?.x??0)*1.24):mode==="cavity"?33:25;
   let streamlineCache;
-  function electricLines(p,camera){
-    const point=[p.x,p.y,p.z], at=P.electro("charges",p,point);
-    const s=scene(camera,32,"電力線、電場與檢驗電荷受力");
-    const sources=[[-p.spacing/2,p.q],[p.spacing/2,p.q2]].filter(([,q])=>q);
-    const fieldAt=position=>P.electro("charges",p,position)?.e||zero;
-    if(camera.plane==="yz"){
-      for(const y of [-13,0,13])for(const z of [-13,0,13]){
-        const origin=[0,y,z], field=fieldAt(origin);
-        pointArrow(s,origin,field,3.5,C.teal,undefined,2,true);
+
+  function drawStream(s,points,camera,extent,sign,guide=false){
+    const split=!camera.plane&&camera.electroDepth!=="section";
+    if(!split)s.draw(points,C.teal,1.45);
+    else{
+      const opacity=front=>guide?(front?.21:.10):front?.95:camera.electroDepth==="front"?0:.33;
+      let run=[points[0]], front=s.depth(points[0])>=0;
+      for(let i=1;i<points.length;i++){
+        const next=points[i], before=points[i-1], depth=s.depth(next), nextFront=depth>=0;
+        if(nextFront!==front){
+          const cut=sum(next,mul(sub(before,next),depth/(depth-s.depth(before))));
+          if(opacity(front))s.draw([...run,cut],C.teal,guide?1:1.55,undefined,opacity(front));
+          run=[cut];
+          front=nextFront;
+        }
+        run.push(next);
+      }
+      if(opacity(front))s.draw(run,C.teal,guide?1:1.55,undefined,opacity(front));
+    }
+    if(guide)return;
+    const total=points.length;
+    for(let i=2;i<total;i++){
+      const a=points[i-2],b=points[i], [x,y]=s.project(b);
+      if(x<24||x>536||y<23||y>367||length(sub(s.project(a),[x,y]))<6)continue;
+      if(length(sub(b,points[0]))<extent*.12||(split&&s.depth(b)<0))continue;
+      s.arrow(sign>0?a:b,sign>0?b:a,C.teal,1.15,undefined,true);
+      break;
+    }
+  }
+  function conductorSection(s,camera,outer,inner=0){
+    const axes=(planes[camera.plane]||planes.xy).axes;
+    const section=r=>ring(r,0,80).map(([u,v])=>planePoint(axes,u,v));
+    if(!camera.plane){
+      s.draw(ring(outer).map(([x,y])=>[x,0,y]),"#5c8ea3",1.05,"4 3",.35);
+      s.draw(ring(outer).map(([x,y])=>[0,x,y]),"#5c8ea3",1.05,"4 3",.35);
+    }
+    const shell=section(outer);
+    if(inner){
+      const cavity=section(inner);
+      s.annulus(shell,cavity,"#91b7c4");
+      s.draw(cavity,"#28647c",1.35);
+    }else s.polygon(shell,"#6fa2b2",.43);
+    s.draw(shell,"#28647c",1.45);
+  }
+  function drawElectricLines(s,mode,p,camera,extent){
+    const cavity=mode==="cavity", sphere=mode==="sphere", pair=pairMode(mode);
+    const shape=cavity?P.cavityGeometry(p):null;
+    if(sphere)conductorSection(s,camera,p.radius);
+    if(cavity)conductorSection(s,camera,shape.outer,shape.inner);
+    if(!sphere&&camera.plane==="yz"){
+      for(const y of [-.48,0,.48])for(const z of [-.48,0,.48]){
+        const origin=[0,y*extent,z*extent], field=P.electro(mode,p,origin)?.e||zero;
+        pointArrow(s,origin,field,extent*.14,C.teal,undefined,2,true);
+      }
+      return;
+    }
+    const main=camera.plane==="xz"?Math.PI/2:0, far=extent*3.5;
+    const spatial=!camera.plane&&camera.electroDepth==="depth";
+    if(sphere){
+      const count=2*Math.abs(p.q);
+      for(let i=0;i<count;i++){
+        const theta=TAU*(i+.5)/count, a=fieldPlane([Math.cos(theta),Math.sin(theta)],main);
+        const rays=sample(24,u=>mul(a,p.radius+u*(far-p.radius)));
+        if(spatial&&i%Math.max(2,Math.ceil(count/6))===0){
+          drawStream(s,rays.map(([x,y])=>[x,0,y]),camera,extent,Math.sign(p.q),true);
+        }
+        drawStream(s,rays,camera,extent,Math.sign(p.q));
       }
     }else{
-      const key=[p.q,p.q2,p.spacing].join("/");
-      if(streamlineCache?.key!==key)streamlineCache={key,paths:P.electricStreamlines(p)};
-      const angles=camera.plane==="xy"?[0]:camera.plane==="xz"?[Math.PI/2]:[0,Math.PI/3,2*Math.PI/3];
-      for(const azimuth of angles)for(const {points,sign} of streamlineCache.paths)for(const side of [-1,1]){
-        const trace=points.map(([x,y])=>[x,y*side*Math.cos(azimuth),y*side*Math.sin(azimuth)]);
-        s.draw(trace,C.teal,1.4);
-        if(camera.analysis&&trace.length>8){
-          const i=Math.min(35,Math.floor(trace.length*.54)), a=trace[i-3], b=trace[i];
-          s.arrow(sign>0?a:b,sign>0?b:a,C.teal,1.4);
-        }
+      const key=[mode,p.q,p.q2,p.spacing,p.offset,far].join("/");
+      if(streamlineCache?.key!==key){
+        streamlineCache={key,paths:cavity?P.cavityStreamlines(p,far):P.electricStreamlines(p,far)};
       }
-      sources.forEach(([x,q])=>s.charge([x,0,0],q>0));
+      const {paths}=streamlineCache;
+      const layer=(angle,guide)=>paths.forEach(({points,sign},i)=>{
+        if(guide&&i%Math.max(2,Math.ceil(paths.length/5))!==0)return;
+        for(const side of [-1,1]){
+          const trace=points.map(([x,y])=>fieldPlane([x,side*y],angle));
+          drawStream(s,trace,camera,extent,sign,guide);
+        }
+      });
+      if(spatial)layer(Math.PI/2,true);
+      layer(main,false);
+      const charges=cavity?[[p.offset,p.q],[shape.external,p.q2]]:pair?[[-p.spacing/2,p.q],[p.spacing/2,p.q2]]:[];
+      const radius=camera.electroRange==="far"?clamp(s.scale*(p.spacing??shape.external)*.26,4.5,9):10;
+      charges.filter(([,q])=>q).sort(([a],[b])=>s.depth([a,0,0])-s.depth([b,0,0]))
+        .forEach(([x,q])=>s.charge([x,0,0],q>0,radius));
     }
-    s.probe(point,p.vectors?"P":"");
-    const force=at?mul(at.e,p.test):null; // nC × N/C gives nN.
-    if(at){
-      if(p.vectors===1)pointArrow(s,point,at.e,12,C.blue,"E",2.4,true);
-      if(p.vectors===2)pointArrow(s,point,force,12,C.violet,"F",2.4,true);
+  }
+  function potentialTerrain(s,mode,p,camera,extent){
+    const point=[p.x,p.y,p.z], axes=(planes[camera.plane]||planes.xy).axes;
+    const cap=mode==="plates"?30:mode==="sphere"?9000:12000, bound=extent*.83;
+    const fixed=[0,1,2].find(i=>!axes.includes(i));
+    const cut=pairMode(mode)||mode==="cavity"?zero:point;
+    const poles=pairMode(mode)?[[-p.spacing/2,p.q],[p.spacing/2,p.q2]]:mode==="cavity"?[[p.offset,p.q],[P.cavityGeometry(p).external,p.q2]]:[];
+    const evaluate=(a,b)=>{
+      const xyz=planePoint(axes,a,b,cut), at=P.electro(mode,p,xyz);
+      const singular=poles.find(([x,q])=>q&&length(sub(xyz,[x,0,0]))<.45);
+      return clamp(at?.v??Math.sign(singular?.[1]??0)*cap,-cap,cap);
+    };
+    function terrainPoint(a,b,v){
+      return camera.plane?planePoint(axes,a,b):[a,b,.57*extent*v/cap];
     }
-    const rows=[item("field","P 點電場 |E|",at?mag(at.e,"N/C",1):"—"),
-      item("vector","電場 E（x, y, z）",at?vec(at.e,1)+" N/C":"—"),
-      item("force","靜電力 F（x, y, z）",force?vec(force,1)+" nN":"—")];
-    const legend=[[C.teal,camera.plane==="yz"?"x = 0 切片的局部電場":"電力線"]];
-    if(p.vectors===1)legend.push([C.blue,"P 的電場 E"]);
-    if(p.vectors===2)legend.push([C.violet,"檢驗電荷受力 F"]);
-    return sceneOut(s,rows,legend,
-      (camera.plane==="yz"?"YZ 顯示 x = 0 切片的局部電場向量。":
-        camera.plane?"電力線畫在包含兩場源的中央平面，P 可在平面外。":"電力線畫在通過兩場源的三個平面上，不同平面的曲線在投影中可能重疊。")+
-      "電力線由正電荷或無窮遠出發，終止於負電荷或無窮遠。每個含兩場源的切面，從電荷出入的線數與電量量值成正比。讀值依 P 的實際三維座標計算。");
+    const refine=(axis,extra)=>[...new Set([...axis,...extra.filter(x=>Math.abs(x)<bound)])].sort((a,b)=>a-b);
+    const axis=sample(34,u=>bound*(2*u-1));
+    const xs=axes[0]===0?refine(axis,poles.filter(([,q])=>q).flatMap(([x])=>[x-1,x-.5,x,x+.5,x+1])):axis;
+    const ys=refine(axis,[-1,-.5,0,.5,1]);
+    const grid=ys.map(b=>xs.map(a=>({v:evaluate(a,b),a,b})));
+    const first=grid[0][0].v;
+    const uniform=grid.every(row=>row.every(({v})=>Math.abs(v-first)<1e-8))?first:null;
+    const faces=[], levels=[];
+    for(let j=1;j<ys.length;j++)for(let i=1;i<xs.length;i++){
+      const corners=[grid[j-1][i-1],grid[j-1][i],grid[j][i],grid[j][i-1]];
+      const avg=corners.reduce((n,c)=>n+c.v,0)/4, t=Math.min(1,Math.abs(avg/cap))**.46;
+      const mid=[222,232,229], tone=avg<0?[33,72,153]:[183,46,37];
+      const fill=`rgb(${mid.map((v,k)=>Math.round(v+(tone[k]-v)*t)).join(",")})`;
+      faces.push([corners.map(({a,b,v})=>terrainPoint(a,b,v)),fill]);
+      const cuts=[];
+      corners.forEach((a,k)=>{
+        const b=corners[(k+1)%4];
+        if((a.v>=0)===(b.v>=0))return;
+        const t=a.v/(a.v-b.v);
+        cuts.push(terrainPoint(a.a+t*(b.a-a.a),a.b+t*(b.b-a.b),0));
+      });
+      if(cuts.length===2)levels.push(cuts);
+    }
+    s.surface(faces);
+    for(const segment of levels)s.draw(segment,"#253c48",1.4);
+    if(Math.abs(point[fixed]-cut[fixed])<1e-8&&Math.abs(point[axes[0]])<bound&&Math.abs(point[axes[1]])<bound){
+      const [a,b]=axes.map(i=>point[i]);
+      s.dot(terrainPoint(a,b,evaluate(a,b)),C.ink,"P");
+    }
+    return {cap,slice:"xyz"[fixed]+" = "+fmt(cut[fixed])+" cm",bound,uniform,pointAt:(a,b)=>terrainPoint(a,b,evaluate(a,b))};
+  }
+  function axisProfile(mode,p,camera,extent,pair){
+    let min=-extent*1.5,max=extent*1.5;
+    const half=p.spacing/2, zeros=pair?.potentialZeroes||[];
+    const outerZero=zeros[1];
+    // In a far-field comparison of unequal opposite charges, magnify the side containing the null.
+    const zoomProfile=camera.electroRange==="far"&&outerZero!==undefined;
+    if(zoomProfile){
+      const x=Math.abs(pair.x);
+      const edge=half+(Math.abs(outerZero)-half)*.6, end=x+Math.max(x*.75,p.spacing);
+      [min,max]=pair.x>0?[edge,end]:[-end,-edge];
+    }
+    const points=sample(430,u=>min+(max-min)*u);
+    if(pair)points.push(-half,half,...zeros,...(pair.x===null?[]:[pair.x]));
+    if(mode==="sphere")points.push(-p.radius,p.radius);
+    if(mode==="cavity"){
+      const {inner,outer,external}=P.cavityGeometry(p);
+      points.push(-outer,-inner,inner,outer,p.offset,external);
+    }
+    const rows=points.filter(x=>x>=min&&x<=max).sort((a,b)=>a-b).map(x=>[x,P.electro(mode,p,[x,0,0])]);
+    const fields=rows.map(([,m])=>m?.e?.[0]??0);
+    const limit=zoomProfile?Math.max(1,3*Math.min(Math.max(...fields),-Math.min(...fields))):75000;
+    const graph=chart(max,[
+      {name:"沿軸電場 Eₓ",unit:"N/C",values:rows.map(([x,m])=>[x,m?.e?clamp(m.e[0],-limit,limit):null]),zeroes:pair&&pair.x!==null?[pair.x]:[],color:C.violet},
+      {name:"沿軸電位 V",unit:"V",values:rows.map(([x,m])=>[x,m?clamp(m.v,-12000,12000):null]),zeroes:zeros,color:C.teal}
+    ],p.y===0&&p.z===0?p.x:null,"x 軸（y = z = 0，cm）",min);
+    return graph;
   }
   const electro={
     id:"potential-map",title:"靜電力、電力線與電位",sections:["1-1","1-2","1-3"],
     description:"同時量電位 V 與電場 E；沿切片讀等電位線，記錄起點 A，再用檢驗電荷比較電力作功。",
     camera:{yaw:22,pitch:52,zoom:1},
     modes:[
-      {id:"charges",title:"點電荷等電位線",controls:chargeControls,
+      {id:"charges",title:"點電荷電位地形",camera:{yaw:20,pitch:37,zoom:1},electroViews:["surface","contours","lines"],controls:chargeControls,
         task:"等量異號時，將 P 放到 x = 0 的平面。比較 V = 0 與 E 是否也為零，再把右側電荷改為同號。"},
-      {id:"field-lines",title:"電力線與庫侖力",controls:[pick("vectors","圖上顯示",[[0,"電力線"],[1,"電力線與電場 E"],[2,"電力線與靜電力 F"]],0),...chargeControls.map(c=>c.key==="z"?{...c,value:0}:c)],
+      {id:"field-lines",title:"電力線與庫侖力",electroViews:["lines","surface"],controls:[pick("vectors","測點箭頭",[[0,"隱藏"],[1,"電場 E"],[2,"靜電力 F"]],0),...chargeControls.map(c=>c.key==="z"?{...c,value:0}:c)],
         task:"先將右側電荷設為 0，再加上同號或異號場源。只反轉檢驗電荷的符號，觀察電場與受力的差別。"},
       {id:"plates",title:"平行導體板",controls:[ctl("voltage","板間電位差",2,30,1,14,"V"),ctl("gap","板間距",6,28,1,18,"cm"),...xyz(0,5,4)],
         task:"先只改 y、z，再改 x。哪些移動讓電位改變？固定電位差再改板間距，觀察 V(x) 的斜率。"},
-      {id:"sphere",title:"帶電導體球",controls:[ctl("q","導體球總電量 Q",-12,12,1,6,"nC"),ctl("radius","球半徑",4,15,.5,10,"cm"),...xyz(6,1,0)],
-        task:"從球內移到球外，找出 V 不變、E = 0 的範圍。注意 V 在球面連續，E 則有內外之分。"}
+      {id:"sphere",title:"帶電金屬球",electroViews:["lines","surface","contours"],controls:[ctl("q","金屬球總電量 Q",-12,12,1,6,"nC"),ctl("radius","球半徑",4,15,.5,10,"cm"),...xyz(6,1,0)],
+        task:"從球內移到球外，找出 V 不變、E = 0 的範圍。注意 V 在球面連續，E 則有內外之分。"},
+      {id:"cavity",title:"接地空腔金屬球",electroViews:["lines","surface"],
+        controls:[ctl("q","腔內點電荷",-12,12,1,4,"nC"),ctl("q2","外部點電荷",-12,12,2,8,"nC"),ctl("offset","腔內電荷 x",0,5,.5,3,"cm"),...xyz(0,0,0)],
+        task:"移動腔內電荷，觀察電力線如何終止於腔壁。再改變外部電荷，比較腔內與金屬中的電場。"}
     ].map(m=>({...m,controls:[...m.controls,pick("test","檢驗電荷 q",[[1,"+1 nC"],[-1,"−1 nC"],[2,"+2 nC"],[-2,"−2 nC"]],1)]})),
     draw(mode,p,camera,state){
-      if(mode==="field-lines")return electricLines(p,camera);
       const point=[p.x,p.y,p.z], at=P.electro(mode,p,point), atA=state.a?P.electro(mode,p,state.a):null;
-      const s=scene(camera,32,"等電位切片、場源與觀測點 P 的電場向量");
+      const pair=pairMode(mode)?P.electricPair(p):null;
+      const view=camera.electroDisplay||(mode==="field-lines"||mode==="sphere"||mode==="cavity"?"lines":mode==="charges"?"surface":"contours");
+      const extent=mode==="plates"?32:electricExtent(mode,camera,pair);
+      const s=scene(camera,extent,view==="surface"?"電位地形":view==="lines"?"電力線與電場":"等電位切片");
       const axes=(planes[camera.plane]||planes.xy).axes;
-      const fixed=[0,1,2].find(i=>!axes.includes(i)), slice="xyz"[fixed]+" = "+fmt(point[fixed])+" cm";
-      const bounds=27, count=25, inc=2*bounds/count;
-      const slicePoint=(a,b)=>planePoint(axes,a,b,point);
-      const sphereColor=p.q>0?"copper":p.q<0?"blue":"steel";
-      if(mode==="sphere"){
-        if(!camera.plane)s.orb(zero,p.radius,sphereColor,false,.3);
-        const sectionRadius=Math.sqrt(Math.max(0,p.radius**2-point[fixed]**2));
-        if(sectionRadius){
-          const edge=ring(sectionRadius).map(([a,b])=>slicePoint(a,b));
-          s.polygon(edge,p.q>0?C.amber:p.q<0?C.blue:C.muted,.25);
-          s.draw(edge,C.muted,1.2);
-        }
-      }
-      const vGrid=sample(count,v=>sample(count,u=>P.electro(mode,p,slicePoint(-bounds+2*bounds*u,-bounds+2*bounds*v))?.v));
-      const sliceValues=vGrid.flat().filter(Number.isFinite);
-      const flat=sliceValues.length>0&&Math.max(...sliceValues)-Math.min(...sliceValues)<1e-8;
-      if(flat)s.polygon([slicePoint(-bounds,-bounds),slicePoint(bounds,-bounds),slicePoint(bounds,bounds),slicePoint(-bounds,bounds)],C.violet,.12);
+      const fixed=[0,1,2].find(i=>!axes.includes(i));
+      let slice="xyz"[fixed]+" = "+fmt(view==="lines"?0:point[fixed])+" cm";
+      let terrain=null, flatValue;
       const spacing=mode==="plates"?p.voltage/5:mode==="sphere"?Math.max(100,Math.abs(9000*p.q/p.radius)/5):
         Math.max(100,Math.round(Math.max(Math.abs(p.q),Math.abs(p.q2))*1.7)*100);
-      const levels=mode==="plates"?[1,2,3,4].map(i=>i*spacing):[-4,-3,-2,-1,0,1,2,3,4].map(i=>i*spacing);
-      for(const level of levels)for(let j=0;j<count;j++)for(let i=0;i<count;i++){
-        const a=-bounds+i*inc,b=-bounds+j*inc;
-        const pts=[slicePoint(a,b),slicePoint(a+inc,b),slicePoint(a+inc,b+inc),slicePoint(a,b+inc)];
-        const vals=[vGrid[j][i],vGrid[j][i+1],vGrid[j+1][i+1],vGrid[j+1][i]];
-        if(vals.some(v=>v===undefined))continue;
-        const cuts=[];
-        for(let k=0;k<4;k++){const l=(k+1)%4, v=vals[k], u=vals[l];if((v>=level)!==(u>=level))cuts.push(sum(pts[k],mul(sub(pts[l],pts[k]),(level-v)/(u-v))));}
-        const color=mode!=="plates"&&level===0?C.violet:level>0?C.amber:C.blue;
-        if(cuts.length>=2)s.draw(cuts.slice(0,2),color,level===0?2.1:1.1);
-        if(cuts.length===4)s.draw(cuts.slice(2),color,1.1);
-      }
-      if(mode==="charges"){
-        if(p.q)s.charge([-p.spacing/2,0,0],p.q>0);
-        if(p.q2)s.charge([p.spacing/2,0,0],p.q2>0);
-      }else if(mode==="plates"){
-        for(const x of [-p.gap/2,p.gap/2].sort((a,b)=>s.depth([a,0,0])-s.depth([b,0,0]))){
-          const face=x+Math.sign(x)*.725;
-          const nodes=[[face,-26,-26],[face,26,-26],[face,26,26],[face,-26,26]];
-          s.slab(nodes,[1.45,0,0],x<0?"copper":"steel",.62);
-          if(camera.labels)s.dot([face,-25,24],x<0?C.amber:C.blue,x<0?"＋":"−",4);
+      if(view==="lines"){
+        drawElectricLines(s,mode,p,camera,extent);
+      }else if(view==="surface"){
+        terrain=potentialTerrain(s,mode,p,camera,extent);
+        slice=terrain.slice;
+      }else{
+        const bounds=extent*.84, count=30, inc=2*bounds/count;
+        const slicePoint=(a,b)=>planePoint(axes,a,b,point);
+        if(mode==="sphere"){
+          const sectionRadius=Math.sqrt(Math.max(0,p.radius**2-point[fixed]**2));
+          if(sectionRadius){
+            const edge=ring(sectionRadius).map(([a,b])=>slicePoint(a,b));
+            s.polygon(edge,"#6fa2b2",.32);
+            s.draw(edge,C.muted,1.2);
+          }
+        }
+        const vGrid=sample(count,v=>sample(count,u=>P.electro(mode,p,slicePoint(-bounds+2*bounds*u,-bounds+2*bounds*v))?.v));
+        const sliceValues=vGrid.flat().filter(Number.isFinite);
+        if(sliceValues.length>0&&Math.max(...sliceValues)-Math.min(...sliceValues)<1e-8){
+          flatValue=sliceValues[0];
+          s.polygon([slicePoint(-bounds,-bounds),slicePoint(bounds,-bounds),slicePoint(bounds,bounds),slicePoint(-bounds,bounds)],C.violet,.12);
+        }
+        const levels=(mode==="plates"?[1,2,3,4]:[-4,-3,-2,-1,0,1,2,3,4]).map(i=>i*spacing);
+        for(const level of levels)for(let j=0;j<count;j++)for(let i=0;i<count;i++){
+          const a=-bounds+i*inc,b=-bounds+j*inc;
+          const pts=[slicePoint(a,b),slicePoint(a+inc,b),slicePoint(a+inc,b+inc),slicePoint(a,b+inc)];
+          const vals=[vGrid[j][i],vGrid[j][i+1],vGrid[j+1][i+1],vGrid[j+1][i]];
+          if(vals.some(v=>v===undefined))continue;
+          const cuts=[];
+          for(let k=0;k<4;k++){const l=(k+1)%4, v=vals[k], u=vals[l];if((v>=level)!==(u>=level))cuts.push(sum(pts[k],mul(sub(pts[l],pts[k]),(level-v)/(u-v))));}
+          const color=level===0?C.violet:level>0?C.amber:C.blue;
+          if(cuts.length>=2)s.draw(cuts.slice(0,2),color,level===0?2.1:1.1);
+          if(cuts.length===4)s.draw(cuts.slice(2),color,1.1);
+        }
+        if(pair&&camera.plane!=="yz"&&Math.abs(point[fixed])<1e-8){
+          if(p.q)s.charge([-p.spacing/2,0,0],p.q>0);
+          if(p.q2)s.charge([p.spacing/2,0,0],p.q2>0);
+        }else if(mode==="plates"){
+          for(const x of [-p.gap/2,p.gap/2].sort((a,b)=>s.depth([a,0,0])-s.depth([b,0,0]))){
+            const face=x+Math.sign(x)*.725;
+            const nodes=[[face,-26,-26],[face,26,-26],[face,26,26],[face,-26,26]];
+            s.slab(nodes,[1.45,0,0],x<0?"copper":"steel",.62);
+            if(camera.labels)s.dot([face,-25,24],x<0?C.amber:C.blue,x<0?"＋":"−",4);
+          }
         }
       }
-      if(state.a)s.dot(state.a,C.violet,"A",4.5);
-      s.probe(point);
-      if(at?.e)pointArrow(s,point,at.e,12,C.teal,"E");
+      const force=at?.e?mul(at.e,p.test):null;
+      if(view!=="surface"){
+        if(state.a)s.dot(state.a,C.violet,"A",4.5);
+        s.probe(point);
+        if(at?.e&&p.vectors!==0){
+          const showForce=p.vectors===2;
+          pointArrow(s,point,showForce?force:at.e,extent*.43,showForce?C.violet:C.blue,showForce?"F":"E",2.4,!!p.vectors);
+        }
+      }
+      const nullAt=pair&&pair.x!==null?P.electro(mode,p,[pair.x,0,0]):null;
+      let nullShown=false;
+      if(nullAt&&(camera.plane!=="yz"||pair.x===0)&&(view!=="contours"||point[fixed]===0)){
+        const mark=terrain?terrain.pointAt(pair.x,0):[pair.x,0,0];
+        const [x,y]=s.project(mark);
+        nullShown=x>=8&&x<=552&&y>=8&&y<=382&&(!terrain||Math.abs(pair.x)<=terrain.bound);
+        if(nullShown)s.landmark(mark,"E = 0",C.violet,"electric-null");
+      }
       const fieldDisplay=at?.e?mag(at.e,"N/C",2):at?"表面兩側值不同":"—";
       const rows=[item("potential","P 點電位 V",at?fmt(at.v,2)+" V":"—"),item("field","P 點電場 |E|",fieldDisplay),
         item("vector","P 點電場 E（x, y, z）",at?.e?vec(at.e,1)+" N/C":"—"),item("energy","P 點電位能 qV",at?fmt(p.test*at.v,2)+" nJ":"—"),
-        item("work","由 A 至 P，靜電力作功",at&&atA?fmt(p.test*(atA.v-at.v),2)+" nJ":state.a?"—":"請先記錄 A"),
-        item("levels","等電位線級距",fmt(spacing)+" V"),item("slice","等電位切片",slice)];
-      const vals=sample(160,u=>{const pos=[-28+56*u,p.y,p.z], v=P.electro(mode,p,pos)?.v;return [pos[0],v===undefined?null:clamp(v,-35000,35000)];});
-      const graph=chart(28,[{name:"沿 x 的電位",unit:"V",values:vals,color:C.teal}],p.x,"x（cm）",-28);
-      return sceneOut(s,rows,[[C.amber,"正電位線"],[C.blue,"負電位線"],[C.violet,"0 V 線／記錄點 A"],[C.teal,"電場 E"]],
-        (at?"":"P 太靠近理想點電荷，讀值不顯示。")+(mode==="plates"?"理想無限大平行板。圖中只畫出一部分，場由左側正板指向右側負板，以負板為 0 V。":"以無窮遠為 0 V。")+
-        "等電位線取通過 P 的切片（"+slice+"）。"+(flat?"淡紫區整片同為 "+fmt(sliceValues[0])+" V。":"")+
-        "V(x) 圖取固定 y、z，超過 ±35,000 V 的值截到圖框。",graph);
+        item("slice","顯示切面",slice)];
+      if(mode==="field-lines")rows.push(item("force","靜電力 F（x, y, z）",force?vec(force,1)+" nN":"—"));
+      else rows.push(item("work","由 A 至 P，靜電力作功",at&&atA?fmt(p.test*(atA.v-at.v),2)+" nJ":state.a?"—":"請先記錄 A"));
+      if(view==="contours")rows.push(item("levels","等電位線級距",fmt(spacing)+" V"));
+      const facts=[];
+      if(pair){
+        const boundary=2*Math.abs(pair.net);
+        const zeroLabel=pair.all?"各處皆為零":pair.x===null?"無有限零點":"x = "+fmt(pair.x,2)+" cm";
+        rows.push(item("q1-lines","Q₁ 出入的線",lineCount(pair.counts[0])),item("q2-lines","Q₂ 出入的線",lineCount(pair.counts[1])),
+          item("joined","連接兩電荷",lineCount(pair.joined)),item("null","電場零點",zeroLabel));
+        if(view==="lines")facts.push(["Q₁",fmt(p.q)+" nC · "+lineCount(pair.counts[0])],["Q₂",fmt(p.q2)+" nC · "+lineCount(pair.counts[1])],
+          ["兩電荷相連",lineCount(pair.joined)],[pair.net<0?"從無窮遠進入":"通往無窮遠",lineCount(boundary)]);
+        facts.push(["E = 0",zeroLabel+(nullAt?" · V = "+fmt(nullAt.v,2)+" V":"")]);
+        if(pair.potentialZeroes.length)facts.push(["軸上 V = 0",pair.potentialZeroes.map(x=>fmt(x,2)).join("、")+" cm"]);
+      }else if(mode==="sphere"&&view==="lines"){
+        facts.push(["球面"+(p.q<0?"進線":"出線"),lineCount(2*Math.abs(p.q))],["金屬內","E = 0"]);
+      }else if(mode==="cavity"&&view==="lines"){
+        facts.push(["腔內電荷與內壁相連",lineCount(2*Math.abs(p.q))],["外部電荷與外壁相連",lineCount(Math.abs(p.q2))],
+          [p.q2<0?"從無窮遠進入":"通往無窮遠",lineCount(Math.abs(p.q2))],["接地金屬","E = 0 · V = 0"]);
+      }
+      const model=mode==="plates"?"理想無限大平行板，負板為 0 V。":
+        mode==="cavity"?"接地同心球殼的內半徑為 8 cm、外半徑為 13 cm，外部點電荷在 x = 26 cm。腔內、腔外分別用球面鏡像電荷計算。":
+        "以無窮遠為 0 V。";
+      let caption=view==="surface"?(camera.plane?"色階顯示電位 V。":"地形高度是電位 V。")+"紅正藍負，深色線標出零電位交界。切面 "+slice+"，顯示範圍 ±"+fmt(terrain.cap,0)+" V。":
+        view==="lines"?(camera.plane==="yz"&&mode!=="sphere"?"YZ 顯示 x = 0 切片的局部電場。線數以含 x 軸的參考切面為準。":
+          "參考切面每 1 nC 畫 2 條線。"+(camera.plane?"":camera.electroDepth==="front"?"目前顯示朝向觀察者的前側。":
+            camera.electroDepth==="section"?"目前只顯示 XY 參考切面。":"深色為前側，淡線標出後側與輔助切面。")):
+        "曲線連接等電位位置，切面 "+slice+"。"+(flatValue===undefined?"":"這一整片同為 "+fmt(flatValue)+" V。");
+      if(nullAt&&!nullShown&&view!=="contours"){
+        caption+=camera.plane==="yz"?" 切到 XY 或 XZ 可沿兩電荷連線找零點。":camera.electroRange!=="far"?" 零點在這個畫框外，切到遠場查看。":" 可由沿軸剖面查看零點。";
+      }
+      if(view==="lines"&&mode==="cavity")caption+=" 藍色環是接地金屬的剖面，中央是空腔。";
+      if(view==="lines"&&mode==="sphere")caption+=" 藍色圓面是金屬球的剖面。";
+      if(terrain?.uniform!==null&&terrain?.uniform!==undefined)caption+=" 整個切面的電位同為 "+fmt(terrain.uniform)+" V。";
+      if(camera.electroRange==="far"&&pair&&!pair.all)caption+=pair.net?" 遠處的電場主要由總電量 "+fmt(pair.net)+" nC 決定。":" 遠處呈電偶極分布，電場隨距離衰減得更快。";
+      const legend=view==="surface"?[[C.red,"正電位"],[C.blue,"負電位"],[C.ink,"V = 0"]]:
+        view==="lines"?[[C.teal,"電力線"],...(p.vectors===1?[[C.blue,"電場 E"]]:p.vectors===2?[[C.violet,"靜電力 F"]]:[])]:
+          [[C.amber,"正電位線"],[C.blue,"負電位線"],[C.violet,"0 V 線"]];
+      const vals=mode==="plates"?sample(160,u=>{const x=-28+56*u;return [x,P.electro(mode,p,[x,p.y,p.z]).v];}):null;
+      const graph=vals?chart(28,[{name:"沿 x 的電位",unit:"V",values:vals,color:C.teal}],p.x,"x（cm）",-28):axisProfile(mode,p,camera,extent,pair);
+      return {...sceneOut(s,rows,legend,(at?"":"P 太靠近理想點電荷。")+model+"沿軸剖面取 y = z = 0。空心點標出各曲線的零點。靠近點電荷的極大讀值截到圖框。",graph),
+        facts,caption};
     }
   };
   const phase=ctl("phase","時間進度",0,100,1,30,"%");

@@ -40,12 +40,39 @@ eq(P.electro("plates",q,[-9,0,0]).v,q.voltage);
 eq(P.electro("plates",q,[9,0,0]).v,0);
 assert.ok(P.electro("plates",q,[0,0,0]).e[0]>0);
 for(const spacing of [6,18,28])for(const [q1,q2] of [[12,-12],[12,-11],[3,-1],[2,-5],[-9,4],[-2,-4],[0,-1],[0,0]]){
-  const paths=P.electricStreamlines({spacing,q:q1,q2});
+  const config={spacing,q:q1,q2}, pair=P.electricPair(config);
+  const paths=P.electricStreamlines(config);
+  eq(pair.joined,2*paths.filter(path=>path.end!==null).length);
+  if(pair.x!==null)vv(P.electro("charges",config,[pair.x,0,0]).e,[0,0,0],1e-7);
   for(const [x,charge] of [[-spacing/2,q1],[spacing/2,q2]]){
     const touching=paths.filter(path=>path.source===x||path.end===x);
     assert.equal(touching.length,Math.abs(charge),`wrong line count at ${charge} nC, separation ${spacing}`);
   }
 }
+const unequal={spacing:18,q:5,q2:-1}, unequalPair=P.electricPair(unequal);
+assert.deepEqual(unequalPair.counts,[10,2]);
+assert.equal(unequalPair.joined,2);
+assert.equal(unequalPair.net,4);
+assert.ok(unequalPair.x>9);
+assert.ok(P.electro("charges",unequal,[unequalPair.x,0,0]).v>0);
+assert.equal(P.electricPair({...unequal,q2:-5}).x,null);
+assert.equal(P.electricPair({...unequal,q2:5}).x,0);
+assert.equal(P.electricPair({...unequal,q:0,q2:0}).all,true);
+
+const cavity={q:4,q2:8,offset:3};
+for(const offset of [0,3,5]){
+  const c={...cavity,offset}, paths=P.cavityStreamlines(c,120);
+  eq(paths.filter(path=>path.end===8).length,4);
+  eq(paths.filter(path=>path.end===13).length,4);
+  eq(paths.filter(path=>path.end===null).length,4);
+  for(const path of paths.filter(path=>path.end!==null))eq(P.length(path.points.at(-1)),path.end,1e-6);
+}
+for(const r of [8,10,13])eq(P.electro("cavity",cavity,[r,0,0]).v,0);
+vv(P.electro("cavity",cavity,[10,0,0]).e,[0,0,0]);
+const inCavity=[0,1,0], outside=[14,3,0];
+assert.ok(P.length(P.electro("cavity",cavity,inCavity).e)>0);
+vv(P.electro("cavity",cavity,inCavity).e,P.electro("cavity",{...cavity,q2:-8},inCavity).e);
+vv(P.electro("cavity",cavity,outside).e,P.electro("cavity",{...cavity,q:-4},outside).e);
 
 const force={b:.35,v:6,q:2,theta:65,phi:32,i:4,size:18,turns:5,commutate:0};
 const m=P.magnetic("particle",force), at=m.at(m.T*.26);

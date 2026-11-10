@@ -4,6 +4,7 @@
   const defaultPlanes={"particle-apps/aurora":"xz","particle-apps/linear":"xz","magnetic-force/particle":"xz","magnetic-force/motor":"yz",
     "induction/magnet":"xz","induction/rotate":"yz","induction/transformer":"xz"};
   const beamModes=new Set(["particle","linear","cyclotron","plane-wave"]);
+  const electroViewLabels={lines:"電力線",surface:"電位地形",contours:"等電位線"};
   const sceneCaptions={
     element:"銅線上的金色短節是選取的電流元。拖曳銀色測點，改變量測位置。",
     straight:"金色短節標出目前選取的電流元。拖曳銀色測點，看看磁場讀值怎麼變。",
@@ -15,6 +16,7 @@
     charges:"曲線連接電位相同的位置。拖曳銀色測點會移動取樣切片。",
     plates:"銅色正板在 x 較小的一側，鋼色負板為 0 V。圖中只畫出理想無限大平行板的一部分。",
     sphere:"淡色區域是導體球的剖面。拖曳測點從球內移到球外，比較電位與電場。",
+    cavity:"藍色環形區是接地金屬，中央是空腔。內外電場各自受導體表面電荷影響。",
     particle:"亮線是粒子已走過的路徑。播放後，試著改變入射角和電荷正負。",
     wire:"改變銅導線的方向，再開啟分析標註查看磁力。",
     parallel:"反轉其中一條導線的電流，在讀值區比較互吸與互斥。",
@@ -37,6 +39,7 @@
     "biot/loop":[["圓心",{x:0,y:0,z:0}],["軸上 10 cm",{x:0,y:0,z:10}],["離軸",{x:8,y:6,z:10}]],
     "biot/solenoid":[["管中心",{x:0,y:0,z:0}],["管外",{x:18,y:0,z:0}]],
     "potential-map/charges":[["等量異號中點",{q:6,q2:-6,x:0,y:0,z:0}],["等量同號中點",{q:6,q2:6,x:0,y:0,z:0}]],
+    "potential-map/field-lines":[["+5 nC／−1 nC",{q:5,q2:-1}],["等量同號",{q:6,q2:6}],["等量異號",{q:6,q2:-6}],["單一正電荷",{q:6,q2:0}]],
     "magnetic-force/particle":[["平行：直線",{theta:0}],["垂直：圓周",{theta:90}],["斜入射：螺旋",{theta:65}]],
     "magnetic-force/motor":[["0°",{theta:0}],["90°",{theta:90}],["180°",{theta:180}],["270°",{theta:270}]],
     "particle-apps/aurora":[["小夾角：到達參考面",{pitch:0,phase:100,emission:0}],["大夾角：磁鏡折返",{pitch:55,phase:60,emission:0}],["電子群沉降",{pitch:0,phase:100,emission:1}]],
@@ -50,10 +53,11 @@
     const defaults=Object.fromEntries(mode.controls.map(c=>[c.key,c.value]));
     const lesson=EM.workbenchLessons[mode.id], [variable,...conditions]=lesson.variable;
     const cases=conditions.map(value=>({...defaults,...lesson.setup,[variable]:value}));
-    const defaultCamera=mode.camera||bench.camera;
+    const defaultCamera=mode.camera||bench.camera, electroViews=mode.electroViews;
     const theme=mode.id==="aurora"?"space":beamModes.has(mode.id)?"beam":"lab";
     const saved=memory.get(key)||{p:{...defaults},camera:{...defaultCamera},state:{},
-      view:{dimension:lesson.plane?"2d":"3d",plane:lesson.plane||defaultPlanes[key]||"xy",grid:false,labels:false},
+      view:{dimension:lesson.plane?"2d":"3d",plane:lesson.plane||defaultPlanes[key]||"xy",grid:false,labels:false,
+        electroDisplay:electroViews?.[0],electroRange:"near",electroDepth:"depth"},
       activity:{free:false,caseIndex:0,prediction:null,explained:false,evidence:[null,null]}};
     memory.set(key,saved);
     const {camera,view,activity}=saved, canRecord=bench.id==="potential-map"&&mode.id!=="field-lines";
@@ -95,6 +99,19 @@
             </div>
             <p class="bench-preview" hidden>動態預覽中。停止後會回到目前案例。</p>
           </section>
+          ${electroViews?`<div class="bench-electro-tools">
+            <div class="action-row" role="group" aria-label="靜電圖面">${electroViews.map(id=>
+              `<button type="button" class="button" data-electro-display="${id}" aria-pressed="false">${electroViewLabels[id]}</button>`).join("")}</div>
+            <div class="action-row" role="group" aria-label="觀察範圍">
+              <button type="button" class="button" data-electro-range="near" aria-pressed="true">近場</button>
+              <button type="button" class="button" data-electro-range="far" aria-pressed="false">遠場</button>
+              <button type="button" class="button bench-axis-jump">沿軸剖面</button>
+            </div>
+            <label class="bench-depth" hidden><span>3D 景深</span><select>
+              <option value="depth">前後分層</option><option value="front">只看前側</option><option value="section">單一參考切面</option>
+            </select></label>
+            <button type="button" class="button bench-face-view" hidden>正視切面數線</button>
+          </div>`:""}
           <p class="bench-scene-caption">${sceneCaptions[mode.id]}</p>
           <div class="bench-view-controls">
             <div class="action-row" role="group" aria-label="顯示模式">
@@ -108,6 +125,7 @@
             </div>
           </div>
           <div id="bench-plot" class="bench-plot" tabindex="0" role="group" aria-label="三維視窗。拖曳或用方向鍵旋轉；也可用下方滑桿。"></div>
+          ${electroViews?'<dl class="bench-electro-facts" aria-label="電力線與零點讀值" hidden></dl>':""}
           <p class="small muted bench-view-hint" id="bench-plane-hint" hidden></p>
           <div class="bench-display-options">
             <label><input type="checkbox" data-overlay="grid" ${view.grid?"checked":""}> 座標網格</label>
@@ -158,13 +176,16 @@
         </div>
        </div>
         <p class="small muted" id="bench-notice" role="status"></p>
-        <details class="bench-graphs" hidden><summary>查看同步圖表</summary>${playKey?'<p class="small muted bench-graph-help">自由探索時可點圖移動游標，也可用上方滑桿。</p>':""}<div id="bench-graph"></div></details>
+        <details class="bench-graphs" hidden><summary>${electroViews?"沿 x 軸的電場與電位":"查看同步圖表"}</summary>
+          ${electroViews?'<p class="small muted">兩張圖共用 x 軸（y = z = 0）。空心點標出 Eₓ 或 V 的零點。遠場可放大過零附近，超出縱軸的值截在圖框邊緣。</p>':""}
+          ${playKey?'<p class="small muted bench-graph-help">自由探索時可點圖移動游標，也可用上方滑桿。</p>':""}<div id="bench-graph"></div></details>
       </div>
       <div class="tool-shortcuts"><a href="#labs">← 其他實驗</a>${bench.sections.map(s=>`<a href="#course/${s}">回到 ${s} 導讀</a>`).join("")}</div>
     </div>`;
     const find=sel=>root.querySelector(sel), plot=find("#bench-plot"), graph=find("#bench-graph"), readouts=find("#bench-readouts"), play=find("#bench-play");
     const layout=find(".bench-layout"), evidenceData=find(".bench-evidence-data"), evidenceStatus=find(".bench-evidence-status");
     const explanation=find(".bench-explanation"), previewNotice=find(".bench-preview");
+    const electroTools=find(".bench-electro-tools"), electroFacts=find(".bench-electro-facts");
     const pControls=[...root.querySelectorAll("[data-param]")], viewControls=[...root.querySelectorAll("[data-view]")];
     find(".bench-mode-select select")?.addEventListener("change",e=>{location.hash=url(bench,e.target.value);});
     let frame=0, loop=0, mouse=null, last=0, preview=false;
@@ -185,7 +206,7 @@
         else delete graph.dataset.scrub;
         find(".bench-graph-help").hidden=!free;
       }
-      plot.dataset.editable=String(free&&hasProbe);
+      plot.dataset.editable=String(free&&hasProbe&&view.electroDisplay!=="surface");
       for(const button of root.querySelectorAll("[data-activity]")){
         const active=(button.dataset.activity==="free")===free;
         button.setAttribute("aria-pressed",String(active));
@@ -247,6 +268,18 @@
       find("#bench-planes").hidden=!flat;
       find(".bench-camera").hidden=flat||!activity.free;
       find(".bench-camera-settings").hidden=flat;
+      if(electroTools){
+        const depth=find(".bench-depth");
+        depth.hidden=flat||view.electroDisplay!=="lines";
+        find(".bench-face-view").hidden=depth.hidden;
+        depth.querySelector("select").value=view.electroDepth;
+        plot.dataset.editable=String(activity.free&&hasProbe&&view.electroDisplay!=="surface");
+        for(const button of electroTools.querySelectorAll("[data-electro-display],[data-electro-range]")){
+          const active=button.dataset.electroDisplay===view.electroDisplay||button.dataset.electroRange===view.electroRange;
+          button.setAttribute("aria-pressed",String(active));
+          button.classList.toggle("primary",active);
+        }
+      }
       for(const button of root.querySelectorAll("[data-dimension],[data-plane]")){
         const active=button.dataset.dimension===view.dimension||button.dataset.plane===view.plane;
         button.setAttribute("aria-pressed",String(active));
@@ -269,19 +302,23 @@
       controls();
       const flat=view.dimension==="2d";
       const overlay={theme,grid:view.grid,labels:view.labels,analysis:view.labels,axes:view.grid||view.labels,
-        comparisonExtent:activity.free?undefined:lesson.extent};
+        comparisonExtent:activity.free?undefined:lesson.extent,
+        electroDisplay:view.electroDisplay,electroRange:view.electroRange,electroDepth:view.electroDepth};
       const projection=view.dimension==="2d"?{...overlay,plane:view.plane,zoom:1}:{...camera,...overlay};
       const r=bench.draw(mode.id,p,projection,activity.free?saved.state:{});
       plot.innerHTML=r.diagram;
-      find(".bench-scene-caption").textContent=mode.id==="field-lines"&&flat&&view.plane==="yz"?
-        "這是 x = 0 切片。符號表示電場垂直切片的方向，箭頭表示平面內的分量。":activity.free?sceneCaptions[mode.id]:lesson.observe;
+      find(".bench-scene-caption").textContent=r.caption||(activity.free?sceneCaptions[mode.id]:lesson.observe);
+      if(electroFacts){
+        electroFacts.hidden=!r.facts?.length;
+        electroFacts.innerHTML=(r.facts||[]).map(([label,value])=>`<div><dt>${label}</dt><dd>${value}</dd></div>`).join("");
+      }
       if(activity.free){
         readouts.innerHTML=r.rows.map(([k,label,value])=>`<div><dt>${label}</dt><dd data-reading="${k}">${value}</dd></div>`).join("");
       }else if(!preview){
         showEvidence(r.rows);
       }
       const legend=find(".bench-legend");
-      legend.hidden=!view.labels&&mode.id!=="field-lines";
+      legend.hidden=!view.labels&&!electroTools;
       legend.innerHTML=r.legend.map(([c,name])=>`<li><span aria-hidden="true" style="--swatch:${c}"></span><span>${name}</span></li>`).join("");
       const hint=find("#bench-plane-hint");
       hint.hidden=!flat||!plot.querySelector("[data-normal]");
@@ -327,6 +364,32 @@
       view[overlay]=e.target.checked;
       queue();
     });
+    electroTools?.addEventListener("click",e=>{
+      const button=e.target.closest("button");
+      if(!button)return;
+      if(button.classList.contains("bench-axis-jump")){
+        const panel=graph.parentElement;
+        panel.open=true;
+        panel.querySelector("summary").focus();
+        panel.scrollIntoView({block:"nearest"});
+        return;
+      }
+      if(button.dataset.electroDisplay){
+        if(button.dataset.electroDisplay==="surface"&&view.electroDisplay!=="surface")view.dimension="3d";
+        view.electroDisplay=button.dataset.electroDisplay;
+      }
+      if(button.dataset.electroRange)view.electroRange=button.dataset.electroRange;
+      if(button.classList.contains("bench-face-view")){
+        Object.assign(camera,{yaw:0,pitch:90,zoom:1});
+        view.electroDepth="section";
+      }
+      updateView();
+      queue();
+    });
+    find(".bench-depth select")?.addEventListener("change",e=>{
+      view.electroDepth=e.target.value;
+      queue();
+    });
     find(".bench-camera").addEventListener("click",e=>{
       const mode=e.target.closest("[data-camera]")?.dataset.camera;
       if(!mode)return;
@@ -348,7 +411,7 @@
     }
     plot.addEventListener("pointerdown",e=>{
       if(e.button!==0||mouse)return;
-      const handle=activity.free&&hasProbe&&e.target.closest("[data-probe]");
+      const handle=plot.dataset.editable==="true"&&e.target.closest("[data-probe]");
       if(!handle&&view.dimension!=="3d")return;
       mouse={id:e.pointerId,x:e.clientX,y:e.clientY};
       if(handle){

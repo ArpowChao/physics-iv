@@ -39,7 +39,7 @@ def run(base, out):
         go("labs")
         assert page.locator(".bench-index .lab-card").count() == 6
         modes = page.evaluate("EM.workbenches.flatMap(b=>b.modes.map(m=>['labs/'+b.id+'/'+m.id,m.controls]))")
-        assert len(modes) == 24
+        assert len(modes) == 25
         for route, controls in modes:
             go(route, guided=True)
             assert page.locator(".bench-modes [aria-current]").count() == 1
@@ -139,6 +139,7 @@ def run(base, out):
         expect("total", "0 μT")
 
         go("labs/potential-map/charges")
+        page.get_by_role("button", name="等電位線", exact=True).click()
         page.get_by_role("button", name="等量異號中點").click()
         expect("potential", "0 V")
         assert read("field").inner_text() != "0 N/C"
@@ -153,6 +154,37 @@ def run(base, out):
         page.get_by_role("button", name="XZ", exact=True).click()
         expect("slice", "y = 0 cm")
         assert read("work").inner_text() != "0 nJ"
+
+        go("labs/potential-map/field-lines", guided=True)
+        page.locator("[data-case='0']").click()
+        facts = page.locator(".bench-electro-facts")
+        page.wait_for_function("document.querySelector('.bench-electro-facts').textContent.includes('23.56')")
+        assert all(text in facts.inner_text() for text in ["10 條","2 條","8 條"])
+        page.locator("#bench-plot [data-landmark=electric-null]").wait_for()
+        page.get_by_role("button", name="遠場", exact=True).click()
+        page.get_by_role("button", name="沿軸剖面").click()
+        assert page.locator("#bench-graph [data-axis-zero]").count() == 2
+        page.get_by_role("button", name="近場", exact=True).click()
+        page.get_by_role("button", name="3D 空間").click()
+        page.locator("#bench-plot svg[data-projection='3d']").wait_for()
+        plot = page.locator("#bench-plot svg")
+        old = plot.inner_html()
+        page.locator(".bench-depth select").select_option("front")
+        page.wait_for_function("(old)=>document.querySelector('#bench-plot svg').innerHTML!==old",arg=old)
+        assert "10 條" in facts.inner_text()
+        page.get_by_role("button",name="正視切面數線").click()
+        assert page.locator(".bench-depth select").input_value()=="section"
+        page.get_by_role("button", name="電位地形", exact=True).click()
+        page.locator("#bench-plot [data-potential-surface]").wait_for()
+        assert page.locator(".bench-depth select").is_hidden()
+        page.get_by_role("button", name="電力線", exact=True).click()
+
+        go("labs/potential-map/sphere", guided=True)
+        assert "12 條" in page.locator(".bench-electro-facts").inner_text()
+        go("labs/potential-map/cavity", guided=True)
+        page.locator("[data-case='1']").click()
+        page.wait_for_function("""document.querySelector('td[data-measure=field][data-evidence="1"]').textContent==='0 N/C'""")
+        assert "8 條" in page.locator(".bench-electro-facts").inner_text()
 
         go("labs/potential-map/plates")
         val("x", -9)
@@ -188,6 +220,13 @@ def run(base, out):
         page.locator("#bench-test").select_option("-1")
         page.wait_for_function("(old)=>document.querySelector('[data-reading=force]').textContent!==old", arg=before)
         assert read("vector").inner_text() == field
+        val("q",12)
+        val("q2",-11)
+        val("spacing",28)
+        page.locator("#bench-plot [data-landmark=electric-null]").wait_for(state="detached")
+        page.get_by_role("button",name="遠場",exact=True).click()
+        page.locator("#bench-plot [data-landmark=electric-null]").wait_for()
+        page.get_by_role("button",name="近場",exact=True).click()
 
         go("labs/particle-apps/linear")
         expect("frequency", "2 MHz")
@@ -255,7 +294,7 @@ def run(base, out):
                 go("labs/biot/element")
                 page.get_by_role("combobox", name="實驗情境").select_option("loop")
                 page.wait_for_function("document.querySelector('main').dataset.route==='labs/biot/loop'")
-            for route in ["labs", "labs/biot/element", "labs/potential-map/charges", "labs/potential-map/field-lines", "labs/magnetic-force/particle",
+            for route in ["labs", "labs/biot/element", "labs/potential-map/charges", "labs/potential-map/field-lines", "labs/potential-map/cavity", "labs/magnetic-force/particle",
                           "labs/particle-apps/cyclotron", "labs/particle-apps/aurora", "labs/induction/transformer", "labs/em-wave/plane-wave"]:
                 go(route, guided=True)
                 assert page.evaluate("document.documentElement.scrollWidth === innerWidth"), (width, route, "guided")
@@ -285,7 +324,7 @@ def run(base, out):
                     page.get_by_role("button", name="3D 空間").click()
         assert not errors, errors
         browser.close()
-    print("Verified guided comparisons and free exploration for all 24 scenes, including 2D/3D, preview, and mobile reflow.")
+    print("Verified guided comparisons and free exploration for all 25 scenes, including electrostatic line counts, depth, nulls, terrain, and mobile reflow.")
 
 
 if __name__ == "__main__":

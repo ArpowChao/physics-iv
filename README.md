@@ -22,7 +22,9 @@
 | [粒子加速器與極光](https://arpowchao.github.io/physics-iv/#labs/particle-apps) | 直線加速器、迴旋加速器、偶極地磁場中的粒子沉降與磁鏡折返。 |
 | [電磁波](https://arpowchao.github.io/physics-iv/#labs/em-wave) | 調整偏振角，從不同平面看 E、B 與傳播方向。 |
 
-24 個工作臺情境預設以「引導觀察」開啟。先記下預測，再比較兩個只改一項條件的案例。證據表保留兩次讀值，兩案都觀察過後可展開參考解釋。「自由探索」可調整全部參數、拖曳測點及查看完整讀值。兩種方式各自保留目前操作狀態。
+25 個工作臺情境預設以「引導觀察」開啟。先記下預測，再比較兩個只改一項條件的案例。證據表保留兩次讀值，兩案都觀察過後可展開參考解釋。「自由探索」可調整全部參數、拖曳測點及查看完整讀值。兩種方式各自保留目前操作狀態。
+
+靜電場圖以穿過兩電荷連線的參考切面計數，每 1 nC 畫 2 條線。3D 可切換前後分層、只看前側和單一參考切面。沿軸剖面與電位地形分別標示電場與電位的零點，電位地形高度有顯示上限。接地空腔金屬球採同心球殼，分別以鏡像電荷計算腔內與球外的電場。 [OpenStax 電力線](https://openstax.org/books/university-physics-volume-2/pages/5-6-electric-field-lines) · [OpenStax 靜電平衡的導體](https://openstax.org/books/university-physics-volume-2/pages/6-4-conductors-in-electrostatic-equilibrium)
 
 粒子加速器採非相對論模型。直線加速器依同步條件計算漂移管長度。工作臺預設顯示實驗裝置與運動，勾選「分析標註」可疊加向量和符號。極光採傾斜偶極地磁場，以 110 km 為比較折返高度的參考面。電子運動顯示導引中心，電子群模式的光幕示意高層大氣發光。海陸輪廓來自公開領域的 Natural Earth 資料。 [OpenStax 迴旋加速器](https://openstax.org/books/university-physics-volume-2/pages/11-7-applications-of-magnetic-forces-and-fields) · [Berkeley Lab 直線加速器](https://abc.lbl.gov/wallchart/chapters/11/3.html) · [NASA 極光說明](https://science.nasa.gov/sun/auroras/) · [Natural Earth 陸地輪廓](https://www.naturalearthdata.com/downloads/110m-physical-vectors/110m-land/)。
 
