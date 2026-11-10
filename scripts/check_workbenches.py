@@ -215,6 +215,7 @@ def run(base, out):
         page.locator("[data-case='1']").click()
         page.wait_for_function("""document.querySelector('td[data-measure=field][data-evidence="1"]').textContent==='0 N/C'""")
         assert "8 條" in page.locator(".bench-electro-facts").inner_text()
+        assert "-40.58" in page.locator(".bench-electro-facts").inner_text()
 
         go("labs/potential-map/plates")
         val("x", -9)

@@ -6,14 +6,14 @@
   const beamModes=new Set(["particle","linear","cyclotron","plane-wave"]);
   const electroViewLabels={lines:"電力線",surface:"3D 電位地形",contours:"等電位線",profile:"沿軸剖面圖"};
   const sceneCaptions={
-    element:"銅線上的金色短節是選取的電流元。拖曳銀色測點，改變量測位置。",
-    straight:"金色短節標出目前選取的電流元。拖曳銀色測點，看看磁場讀值怎麼變。",
+    element:"銅線上的金色短節是選取的電流元。拖曳十字測點 P，改變量測位置。",
+    straight:"金色短節標出目前選取的電流元。拖曳十字測點 P，看看磁場讀值怎麼變。",
     compass:"紅色針尖指北。反轉電流，觀察磁針往哪一側偏。",
-    pair:"金色短節標出選取的電流元。把銀色測點拖到兩線之間，比較磁場。",
-    loop:"拖曳銀色測點，從線圈中心移到軸上和線圈外。",
-    solenoid:"旋轉銅線圈，或把銀色測點拖出管口，比較磁場讀值。",
-    "field-lines":"紅、藍球分別代表正、負電荷。曲線表示電場走向，銀色球是可拖曳的測點。",
-    charges:"曲線連接電位相同的位置。拖曳銀色測點會移動取樣切片。",
+    pair:"金色短節標出選取的電流元。把十字測點 P 拖到兩線之間，比較磁場。",
+    loop:"拖曳十字測點 P，從線圈中心移到軸上和線圈外。",
+    solenoid:"旋轉銅線圈，或把十字測點 P 拖出管口，比較磁場讀值。",
+    "field-lines":"紅、藍球分別代表正、負電荷。曲線表示電場走向，十字準星是可拖曳的測點 P。",
+    charges:"曲線連接電位相同的位置。拖曳十字測點 P 會移動取樣切片。",
     plates:"銅色正板在 x 較小的一側，鋼色負板為 0 V。圖中只畫出理想無限大平行板的一部分。",
     sphere:"淡色區域是導體球的剖面。拖曳測點從球內移到球外，比較電位與電場。",
     cavity:"藍色環形區是接地金屬，中央是空腔。內外電場各自受導體表面電荷影響。",
@@ -331,7 +331,7 @@
         "上圖是電場的 x 分量，下圖是電位。兩圖共用 x 軸。空心點標出各自的零點，超出縱軸的值截在圖框邊緣。":
         r.caption||(activity.free?sceneCaptions[mode.id]:lesson.observe);
       if(electroFacts){
-        const facts=profile?r.facts.filter(([label])=>label==="E = 0"||label==="軸上 V = 0"):r.facts;
+        const facts=profile?r.facts.filter(([label])=>label==="E = 0"||label==="軸上 V = 0"||label==="接地金屬"):r.facts;
         electroFacts.hidden=!facts.length;
         electroFacts.innerHTML=facts.map(([label,value])=>`<div><dt>${label}</dt><dd>${value}</dd></div>`).join("");
       }

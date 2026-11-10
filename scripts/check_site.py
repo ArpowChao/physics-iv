@@ -97,7 +97,7 @@ def run(base, out):
         go("labs/field")
         value("y", 0)
         page.locator("#ctl-s").select_option("1")
-        assert page.locator("#readouts dd").all_inner_texts() == ["0 N/C", "0 μN"]
+        assert page.locator("#readouts dd").all_inner_texts() == ["0 N/C", "0 nN"]
         go("labs/compass")
         value("i", -6)
         assert "30 μT・向下" in readout()

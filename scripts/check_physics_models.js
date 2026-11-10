@@ -24,6 +24,8 @@ assert.ok(P.biot("straight",{...p,half,x:0,y:0,z:0}).unsafe);
 const q={q:6,q2:-6,spacing:18,radius:10,voltage:14,gap:18};
 const mid=P.electro("charges",q,[0,0,0]);
 eq(mid.v,0);assert.ok(mid.e[0]>0);
+eq(P.electro("sphere",q,[10,0,0]).v,540);
+eq(P.electro("sphere",q,[20,0,0]).e[0],1350);
 const same=P.electro("charges",{...q,q2:6},[0,0,0]);
 assert.ok(same.v>0);vv(same.e,[0,0,0]);
 const x=4,h=.0001;
@@ -69,6 +71,11 @@ for(const density of [1,2,3,4,5,6])for(const offset of [0,3,5]){
   eq(renderedLines(paths.filter(path=>path.end===null)),4*density);
   for(const path of paths.filter(path=>path.end!==null))eq(P.length(path.points.at(-1)),path.end,1e-6);
 }
+const cz=P.cavityZeros(cavity);
+eq(cz.eZeros.length,1);
+assert.ok(cz.eZeros[0]<-13);
+vv(P.electro("cavity",cavity,[cz.eZeros[0],0,0]).e,[0,0,0],1e-4);
+eq(P.cavityZeros({...cavity,offset:0,q2:0}).eZeros.length,0);
 for(const r of [8,10,13])eq(P.electro("cavity",cavity,[r,0,0]).v,0);
 vv(P.electro("cavity",cavity,[10,0,0]).e,[0,0,0]);
 const inCavity=[0,1,0], outside=[14,3,0];
@@ -89,7 +96,7 @@ eq(P.magnetic("parallel",{i1:6,i2:4,spacing:10}).f,48e-6);
 eq(P.magnetic("parallel",{i1:6,i2:-4,spacing:10}).f,-48e-6);
 const motor=P.magnetic("motor",{...force,theta:90}), off=P.magnetic("motor",{...force,theta:270});
 const on=P.magnetic("motor",{...force,theta:270,commutate:1});
-eq(motor.torque[0],-force.b*force.i*force.turns*motor.area);
+eq(motor.torque[0],force.b*force.i*force.turns*motor.area);
 eq(off.torque[0],-motor.torque[0]);eq(on.torque[0],motor.torque[0]);
 
 const i={b:.4,end:-.2,size:12,speed:.12,duration:1.4,turns:12,cycles:1,pole:1,closed:1,resistance:4};

@@ -80,7 +80,7 @@
         s+=arrow(x,y+7,x+len*ex/m*p.test,y+7+len*ey/m*p.test,colors.amber,2.1);
       }
       const e=m*18000*scale**2;
-      return [s+caption("兩場源間距 1.20 m｜白：電場 E　琥珀：受力 F"),[output("P 點電場量值",`${f(e,0)} N/C`),output("檢驗電荷受力量值",`${f(e/1000,2)} μN`)]];
+      return [s+caption("兩場源間距 1.20 m｜白：電場 E　琥珀：受力 F"),[output("P 點電場量值",`${f(e,0)} N/C`),output("檢驗電荷受力量值",`${f(e/1000,2)} nN`)]];
     }),
     lab("potential","平行板電位圖",[
       range("v","正、負板的電位差",2,20,1,12,"V"),

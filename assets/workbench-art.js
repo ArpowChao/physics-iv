@@ -6,7 +6,8 @@
     brass:{edge:"#926129",mid:"#d09b48",light:"#fff0b5",rgb:[205,156,85]},
     red:{edge:"#782e37",mid:"#bb4c54",light:"#ffd0c2",rgb:[177,67,75]},
     blue:{edge:"#143a63",mid:"#376da1",light:"#bce7fa",rgb:[55,113,157]},
-    glass:{edge:"#4c95ad",mid:"#7fcddd",light:"#e0fbfa",rgb:[115,193,206]}
+    glass:{edge:"#4c95ad",mid:"#7fcddd",light:"#e0fbfa",rgb:[115,193,206]},
+    conductor:{edge:"#245a70",mid:"#6fa2b2",light:"#dff4f8",rgb:[126,168,184]}
   };
   const pair=point=>point.map(n=>n.toFixed(2)).join(",");
   const poly=(points,fill,attrs="")=>`<polygon points="${points.map(pair).join(" ")}" fill="${fill}" ${attrs}/>`;
@@ -20,6 +21,7 @@
     blue:["#f0fdff","#65b0de","#174579"],
     copper:["#ffeac3","#cf8757","#7b3520"],
     steel:["#fff","#91b1bd","#304a59"],
+    conductor:["#f6feff","#7eb1c4","#234f63"],
     particle:["#fff","#c3fdfa","#3e9edb"],
     spark:["#fff","#ffe6a8","#f7894c"]
   }).map(([name,[light,mid,dark]])=>`<radialGradient id="art-orb-${name}" cx="32%" cy="24%" r="76%"><stop stop-color="${light}"/><stop offset=".48" stop-color="${mid}"/><stop offset="1" stop-color="${dark}"/></radialGradient>`).join("");
@@ -36,6 +38,7 @@
     <radialGradient id="art-aurora-halo"><stop stop-color="#a2ffe0" stop-opacity=".55"/><stop offset=".5" stop-color="#43f7a6" stop-opacity=".27"/><stop offset="1" stop-color="#24bfa8" stop-opacity="0"/></radialGradient>
     <linearGradient id="art-curtain" x2="0%" y2="100%"><stop stop-color="#c396ff" stop-opacity="0"/><stop offset=".54" stop-color="#58f3b1" stop-opacity=".48"/><stop offset="1" stop-color="#acffbe" stop-opacity=".83"/></linearGradient>
     <radialGradient id="art-shadow"><stop stop-color="#233c44" stop-opacity=".23"/><stop offset="1" stop-color="#233c44" stop-opacity="0"/></radialGradient>
+    <radialGradient id="art-cavity-well" cx="62%" cy="66%" r="74%"><stop stop-color="#f7fbfc"/><stop offset=".68" stop-color="#dbe8ec"/><stop offset="1" stop-color="#8daab7"/></radialGradient>
   </defs>`;
   function makeArt({width,height,theme,project,scale,toward,append}){
     const dark=theme!=="lab";
