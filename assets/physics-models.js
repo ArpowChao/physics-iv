@@ -41,11 +41,11 @@
     const [x]=point;
     if(mode==="plates"){
       const half=p.gap/2, fx=clamp((half-x)/p.gap,0,1);
-      return {v:p.voltage*fx,e:Math.abs(x)<=half?[100*p.voltage/p.gap,0,0]:zero};
+      return {v:p.voltage*fx,e:Math.abs(x)===half?null:Math.abs(x)<half?[100*p.voltage/p.gap,0,0]:zero};
     }
     if(mode==="sphere"){
       const r=length(point);
-      return {v:9000*p.q/Math.max(r,p.radius),e:r<p.radius?zero:mul(point,900000*p.q/r**3)};
+      return {v:9000*p.q/Math.max(r,p.radius),e:!p.q||r<p.radius?zero:r===p.radius?null:mul(point,900000*p.q/r**3)};
     }
     const sources=[[-p.spacing/2,0,0,p.q],[p.spacing/2,0,0,p.q2]];
     let v=0,e=zero;
@@ -57,6 +57,60 @@
       e=sum(e,mul(r,900000*q/d**3));
     }
     return {v,e};
+  }
+  function electricStreamlines(p){
+    const sources=[{x:-p.spacing/2,q:p.q},{x:p.spacing/2,q:p.q2}].filter(s=>s.q);
+    const opposed=sources.length===2&&p.q*p.q2<0;
+    // For opposite charges all connecting lines can be traced from the larger charge.
+    const origins=opposed?[sources.reduce((a,b)=>Math.abs(a.q)>=Math.abs(b.q)?a:b)]:sources;
+    const seedRadius=.5, stopRadius=.25, bound=110;
+    function field([x,y]){
+      let fx=0,fy=0;
+      for(const source of sources){
+        const dx=x-source.x, factor=source.q/Math.hypot(dx,y)**3;
+        fx+=factor*dx;
+        fy+=factor*y;
+      }
+      return [fx,fy];
+    }
+    const stream=(x,y)=>sources.reduce((flux,s)=>flux+s.q*(x-s.x)/Math.hypot(x-s.x,y),0);
+    const paths=[];
+    for(const source of origins){
+      const other=sources.find(s=>s!==source), sign=Math.sign(source.q), count=Math.abs(source.q);
+      for(let i=0;i<count;i++){
+        const cosine=1-2*(i+.5)/count;
+        const level=source.q*cosine+(other?other.q*Math.sign(source.x-other.x):0);
+        const connecting=opposed&&Math.abs(level-source.q*Math.sign(other.x-source.x))<Math.abs(other.q);
+        // Place each seed at the midpoint of an equal-flux band.
+        let low=-1, high=1;
+        for(let j=0;j<27;j++){
+          const u=(low+high)/2;
+          const difference=stream(source.x+seedRadius*u,seedRadius*Math.sqrt(1-u*u))-level;
+          if(sign*difference>0)high=u;
+          else low=u;
+        }
+        const u=(low+high)/2;
+        let point=[source.x+seedRadius*u,seedRadius*Math.sqrt(1-u*u)], end=null;
+        const points=[[source.x,0],point];
+        for(let j=0;j<1200;j++){
+          const nearest=Math.min(...sources.map(s=>Math.hypot(point[0]-s.x,point[1])));
+          const outside=length(point)>bound;
+          const step=clamp(nearest*.12,.025,outside?3:.75), tangent=mul(unit(field(point)),sign);
+          if(length(tangent)<.5||(outside&&!connecting))break;
+          const mid=sum(point,mul(tangent,step/2));
+          point=sum(point,mul(unit(field(mid)),step*sign));
+          if(point[1]<=0)break;
+          points.push(point);
+          if(opposed&&Math.hypot(point[0]-other.x,point[1])<stopRadius){
+            end=other.x;
+            points.push([end,0]);
+            break;
+          }
+        }
+        paths.push({points,sign,source:source.x,end});
+      }
+    }
+    return paths;
   }
   function magnetic(mode,p) {
     const b=[0,0,p.b], dir=direction(p.theta,p.phi??0);
@@ -87,7 +141,32 @@
     };
     return {b,m,q,T,r:vp/Math.abs(omega),pitch:Math.abs(vz)*T,at,energy:.5*m*p.v**2};
   }
-  function induction(mode,p,t) {
+  function magnetFlux(p){
+    const coilRadius=p.size/200, radius=.018, halfLength=.056;
+    const angles=Array.from({length:48},(_,i)=>Math.cos(Math.PI*(i+.5)/48));
+    const z=Array.from({length:20},(_,i)=>halfLength*((i+.5)/10-1));
+    const radialDistance2=angles.map(c=>coilRadius**2+radius**2-2*coilRadius*radius*c);
+    // Integrate A_phi at the coil rim from the cylindrical magnet's surface currents.
+    // The flux is the circulation of A; the derivative is taken under the integral.
+    function integral(x){
+      let flux=0,slope=0;
+      for(const offset of z){
+        const axial=x+offset;
+        for(let k=0;k<angles.length;k++){
+          const distance2=radialDistance2[k]+axial**2, a=angles[k]/Math.sqrt(distance2);
+          flux+=a;
+          slope-=a*axial/distance2;
+        }
+      }
+      return {flux,slope};
+    }
+    const scale=p.pole*p.b*coilRadius*radius/2*(2*halfLength/z.length)*(TAU/angles.length);
+    return {radius,halfLength,centerField:scale*integral(0).flux/(Math.PI*coilRadius**2),at(x){
+      const result=integral(x);
+      return {flux:result.flux*scale,slope:result.slope*scale};
+    }};
+  }
+  function induction(mode,p,t,magnet) {
     const T=p.duration, u=clamp(t/T,0,1), loopL=p.size/100, area=loopL**2;
     let flux=0, emf=0, x=0, v=0, overlap=0, angle=0, b=p.b, n=mode==="slide"||mode==="enter"?1:p.turns;
     if(mode==="slide"){
@@ -111,21 +190,46 @@
       b=p.b+(p.end-p.b)*fraction; flux=b*area;
       emf=u>=.25&&u<.75?-n*area*(p.end-p.b)/(.5*T):0;
     }else{
-      // Axis-aligned point dipole; b sets flux density averaged over the coil at z=0.
       x=.24*(2*u-1); v=.48/T;
-      const r=loopL/2, den=r*r+x*x, scale=p.pole*b*(Math.PI*r*r)*r**3;
-      flux=scale/den**1.5;
-      emf=n*3*scale*x*v/den**2.5;
+      const at=(magnet??magnetFlux(p)).at(x);
+      flux=at.flux;
+      emf=-n*at.slope*v;
     }
     const i=p.closed?emf/p.resistance:0, heat=i*i*p.resistance;
     return {flux,emf,i,heat,x,v,overlap,angle,b,n,force:mode==="slide"&&v?-heat/v:0};
   }
   const elementaryCharge=1.602176634e-19, protonMass=1.67262e-27;
   const ionSpeed=energy=>Math.sqrt(2*elementaryCharge*energy/protonMass);
-  function linearAcceleration(p,position){
-    const gaps=[-18,-6,6,18], halfWidth=1.4;
-    const energy=p.initial+p.voltage*gaps.reduce((n,gap)=>n+clamp((position-gap+halfWidth)/(2*halfWidth),0,1),0);
-    return {gaps,halfWidth,energy,speed:ionSpeed(energy),active:gaps.some(gap=>Math.abs(position-gap)<halfWidth)};
+  function linearAcceleration(p){
+    const halfPeriod=.25e-6, gapWidth=.003;
+    const speeds=sample(4,u=>ionSpeed(p.initial+4*u*p.voltage));
+    const crossings=speeds.slice(1).map((end,i)=>{
+      const start=speeds[i], mid=ionSpeed(p.initial+(i+.5)*p.voltage);
+      const first=gapWidth/(start+mid), second=gapWidth/(mid+end);
+      return {first,second};
+    });
+    const tubes=[],gaps=[];
+    let x=0,t=0;
+    for(let i=0;i<speeds.length;i++){
+      const speed=speeds[i], crossing=crossings[i];
+      const drift=halfPeriod-(crossings[i-1]?.second??0)-(crossing?.first??0);
+      const length=speed*drift;
+      tubes.push({start:x,end:x+length,startTime:t,endTime:t+drift,speed,energy:p.initial+i*p.voltage});
+      x+=length;t+=drift;
+      if(!crossing)break;
+      const time=crossing.first+crossing.second, acceleration=(speeds[i+1]-speed)/time;
+      gaps.push({start:x,end:x+gapWidth,startTime:t,endTime:t+time,centerTime:t+crossing.first,speed,acceleration,energy:p.initial+i*p.voltage});
+      x+=gapWidth;t+=time;
+    }
+    const length=x,duration=t, segments=tubes.flatMap((tube,i)=>gaps[i]?[tube,gaps[i]]:[tube]);
+    return {tubes,gaps,length,duration,frequency:1/(2*halfPeriod),at(progress){
+      const time=clamp(progress,0,1)*duration, segment=segments.find(s=>time<s.endTime)??segments.at(-1);
+      const dt=clamp(time-segment.startTime,0,segment.endTime-segment.startTime), acceleration=segment.acceleration??0;
+      const travel=(segment.speed+acceleration*dt/2)*dt;
+      const speed=segment.speed+acceleration*dt;
+      const energy=segment.energy+(acceleration?p.voltage*travel/gapWidth:0);
+      return {time,position:segment.start+travel,energy,speed,active:acceleration>0};
+    }};
   }
   function cyclotron(p){
     const arcs=[];
@@ -156,11 +260,18 @@
       }
     }
     const end=reachesAtmosphere?limit:(low+high)/2;
+    // An illustrative tilted dipole. Longitude is measured in the magnetic coordinate system.
+    const tilt=rad(10), bearing=rad(-72);
+    const magneticToEarth=([x,y,z])=>{
+      const a=x*Math.cos(tilt)+z*Math.sin(tilt);
+      return [a*Math.cos(bearing)-y*Math.sin(bearing),a*Math.sin(bearing)+y*Math.cos(bearing),-x*Math.sin(tilt)+z*Math.cos(tilt)];
+    };
     const point=(latitude,shell=L,phi=longitude)=>{
       const r=shell*Math.cos(latitude)**2;
       return [r*Math.cos(latitude)*Math.cos(phi),r*Math.cos(latitude)*Math.sin(phi),r*Math.sin(latitude)];
     };
-    return {point,ratio,atmosphere,limit,end,lossCone,reachesAtmosphere,earthKm};
+    const latitudeAt=progress=>p.hemisphere*end*(reachesAtmosphere?progress:Math.sin(Math.PI*progress));
+    return {point,ratio,magneticToEarth,latitudeAt,atmosphere,limit,end,lossCone,reachesAtmosphere,earthKm};
   }
   function transformer(p){
     const secondary=p.voltage*p.secondary/p.primary;
@@ -176,7 +287,7 @@
     const at=x=>Math.sin(TAU*(x/wavelength-p.phase/100));
     return {c,wavelength,electric,magnetic,at};
   }
-  const api={sum,mul,sub,dot,cross,length,unit,clamp,rad,TAU,zero,sample,direction,line,ring,biot,electro,magnetic,induction,linearAcceleration,cyclotron,aurora,transformer,emWave};
+  const api={sum,mul,sub,dot,cross,length,unit,clamp,rad,TAU,zero,sample,direction,line,ring,biot,electro,electricStreamlines,magnetic,induction,magnetFlux,linearAcceleration,cyclotron,aurora,transformer,emWave};
   globalThis.EMPhysics=api;
   if(typeof module!=="undefined")module.exports=api;
 })();

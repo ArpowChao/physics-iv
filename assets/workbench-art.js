@@ -30,13 +30,12 @@
     <radialGradient id="art-space" cx="54%" cy="57%" r="76%"><stop stop-color="#1a354b"/><stop offset=".51" stop-color="#0c2033"/><stop offset="1" stop-color="#050e20"/></radialGradient>
     <radialGradient id="art-sea" cx="34%" cy="24%" r="78%"><stop stop-color="#3b8da8"/><stop offset=".5" stop-color="#145676"/><stop offset="1" stop-color="#071f3c"/></radialGradient>
     <radialGradient id="art-earth-light" cx="35%" cy="25%" r="77%"><stop offset=".35" stop-color="#e8ffef" stop-opacity=".17"/><stop offset=".7" stop-color="#0b2a4f" stop-opacity=".12"/><stop offset="1" stop-color="#03152d" stop-opacity=".83"/></radialGradient>
-    <radialGradient id="art-halo"><stop offset=".74" stop-color="#559fd2" stop-opacity="0"/><stop offset=".84" stop-color="#76dfff" stop-opacity=".77"/><stop offset="1" stop-color="#4898ce" stop-opacity="0"/></radialGradient>
+    <radialGradient id="art-halo"><stop offset=".91" stop-color="#559fd2" stop-opacity="0"/><stop offset=".95" stop-color="#76dfff" stop-opacity=".77"/><stop offset="1" stop-color="#4898ce" stop-opacity="0"/></radialGradient>
     <radialGradient id="art-particle-halo"><stop stop-color="#d8ffff" stop-opacity=".94"/><stop offset=".34" stop-color="#70e6f6" stop-opacity=".38"/><stop offset="1" stop-color="#38bcf9" stop-opacity="0"/></radialGradient>
     <radialGradient id="art-spark-halo"><stop stop-color="#fff5c5" stop-opacity=".94"/><stop offset=".36" stop-color="#ffb255" stop-opacity=".5"/><stop offset="1" stop-color="#ff7426" stop-opacity="0"/></radialGradient>
     <radialGradient id="art-aurora-halo"><stop stop-color="#a2ffe0" stop-opacity=".55"/><stop offset=".5" stop-color="#43f7a6" stop-opacity=".27"/><stop offset="1" stop-color="#24bfa8" stop-opacity="0"/></radialGradient>
     <linearGradient id="art-curtain" x2="0%" y2="100%"><stop stop-color="#c396ff" stop-opacity="0"/><stop offset=".54" stop-color="#58f3b1" stop-opacity=".48"/><stop offset="1" stop-color="#acffbe" stop-opacity=".83"/></linearGradient>
     <radialGradient id="art-shadow"><stop stop-color="#233c44" stop-opacity=".23"/><stop offset="1" stop-color="#233c44" stop-opacity="0"/></radialGradient>
-    <linearGradient id="art-field" x1="0%" y1="12%" x2="100%" y2="88%"><stop stop-color="#b67b44"/><stop offset=".55" stop-color="#3c9e92"/><stop offset="1" stop-color="#507eaa"/></linearGradient>
   </defs>`;
   function makeArt({width,height,theme,project,scale,toward,append}){
     const dark=theme!=="lab";
@@ -99,10 +98,10 @@
       }).sort((a,b)=>a.depth-b.depth);
       append(`<g opacity="${opacity}">${records.map(face=>face.draw).join("")}</g>`);
     }
-    function orb(point,r,kind="steel",highlight=false){
+    function orb(point,r,kind="steel",highlight=false,opacity=1){
       const radius=clamp(r*scale,4.5,160);
       if(highlight)circles(point,radius*3.2,kind==="spark"?"url(#art-spark-halo)":"url(#art-particle-halo)");
-      circles(point,radius,`url(#art-orb-${kind})`,'stroke="#f9ffff" stroke-opacity=".6" stroke-width=".9"');
+      circles(point,radius,`url(#art-orb-${kind})`,`opacity="${opacity}" stroke="#f9ffff" stroke-opacity=".6" stroke-width=".9"`);
     }
     function trail(nodes,color="#83e8ef",opacity=1,width=2.1){
       const points=nodes.map(project);
@@ -110,7 +109,7 @@
     }
     function earth(){
       const center=project([0,0,0]);
-      circles([0,0,0],scale*1.19,"url(#art-halo)");
+      circles([0,0,0],scale*1.055,"url(#art-halo)");
       circles([0,0,0],scale,"url(#art-sea)");
       for(const ring of EM.earthLand){
         const clipped=[];
@@ -146,22 +145,22 @@
       circles([0,0,0],scale,"none",'stroke="#95e1fb" stroke-width="1.4" stroke-opacity=".78"');
     }
     const frontOfEarth=point=>dot(point,toward)>=0||length(cross(point,toward))>=1;
-    function curtain(latitude,longitude,strength){
-      const base=sphereCoords(latitude,longitude,1.09);
-      if(frontOfEarth(base))circles(base,scale*.47,"url(#art-aurora-halo)",`opacity="${strength*.8}"`);
+    function curtain(latitude,longitude,radius,toEarth){
+      const onShell=(lat,phi,r)=>toEarth(sphereCoords(lat,phi,r));
       for(let row=0;row<3;row++){
         const lower=[], upper=[], visible=[];
         for(let i=0;i<=82;i++){
-          const u=i/82, phi=longitude+(u-.5)*(5.4-row*.4);
-          const lat=latitude+Math.sign(latitude)*(.03*row+.068*Math.sin(u*16+row)+.019*Math.cos(u*32+row));
-          const bottom=sphereCoords(lat,phi,1.02+row*.012);
-          const height=(.17+.11*Math.sin(u*19+row)**2+.055*Math.cos(u*9+row))*Math.sin(Math.PI*u)**.7;
-          lower.push(bottom);upper.push(sphereCoords(lat,phi,1.038+height));
+          const u=i/82, phi=longitude+(u-.5)*(2.8-row*.15);
+          const lat=latitude+Math.sign(latitude)*(.008*row+.014*Math.sin(u*16+row)+.006*Math.cos(u*32+row));
+          const bottom=onShell(lat,phi,radius);
+          const height=(.013+.009*Math.sin(u*19+row)**2)*Math.sin(Math.PI*u)**.7;
+          lower.push(bottom);upper.push(onShell(lat,phi,radius+height));
           visible.push(frontOfEarth(bottom));
         }
         for(let i=1;i<lower.length;i++){
           if(!visible[i-1]||!visible[i])continue;
-          const opacity=strength*(.99-row*.21)*Math.sin(Math.PI*i/lower.length)**.65;
+          const opacity=(.99-row*.21)*Math.sin(Math.PI*i/lower.length)**.65;
+          if(i%3===0)circles(lower[i],scale*.043,"url(#art-aurora-halo)",`opacity="${opacity*.44}"`);
           append(poly([lower[i-1],lower[i],upper[i],upper[i-1]].map(project),"url(#art-curtain)",`opacity="${opacity}"`));
           append(stroke([lower[i-1],lower[i]].map(project),"#96ffd3",1.5,opacity));
           if(i%2===0)append(stroke([lower[i],upper[i]].map(project),i%5===0?"#b796fa":"#68f6c7",.7,opacity*.21));

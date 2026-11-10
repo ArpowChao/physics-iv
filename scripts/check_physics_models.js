@@ -33,10 +33,25 @@ for(const m of ["charges","plates","sphere"]){
 }
 vv(P.electro("sphere",q,[0,0,0]).e,[0,0,0]);
 eq(P.electro("sphere",q,[0,0,0]).v,P.electro("sphere",q,[10,0,0]).v);
+assert.equal(P.electro("sphere",q,[10,0,0]).e,null);
+assert.equal(P.electro("plates",q,[-9,0,0]).e,null);
+assert.equal(P.electro("plates",q,[9,0,0]).e,null);
+eq(P.electro("plates",q,[-9,0,0]).v,q.voltage);
+eq(P.electro("plates",q,[9,0,0]).v,0);
+assert.ok(P.electro("plates",q,[0,0,0]).e[0]>0);
+for(const spacing of [6,18,28])for(const [q1,q2] of [[12,-12],[12,-11],[3,-1],[2,-5],[-9,4],[-2,-4],[0,-1],[0,0]]){
+  const paths=P.electricStreamlines({spacing,q:q1,q2});
+  for(const [x,charge] of [[-spacing/2,q1],[spacing/2,q2]]){
+    const touching=paths.filter(path=>path.source===x||path.end===x);
+    assert.equal(touching.length,Math.abs(charge),`wrong line count at ${charge} nC, separation ${spacing}`);
+  }
+}
 
 const force={b:.35,v:6,q:2,theta:65,phi:32,i:4,size:18,turns:5,commutate:0};
 const m=P.magnetic("particle",force), at=m.at(m.T*.26);
 eq(P.length(at.v),force.v);eq(P.dot(at.v,at.f),0);
+vv(P.mul(P.sub(m.at(m.T*.26+h).x,m.at(m.T*.26-h).x),1/(2*h)),at.v,.001);
+vv(P.mul(P.sub(m.at(m.T*.26+h).v,m.at(m.T*.26-h).v),m.m/(2*h)),at.f,1e-8);
 vv(m.at(m.T).x,[0,0,force.v*Math.cos(P.rad(force.theta))*m.T]);
 vv(m.at(0).f,P.mul(P.magnetic("particle",{...force,q:-2}).at(0).f,-1));
 eq(P.length(P.magnetic("wire",{...force,theta:0}).f),0);
@@ -59,25 +74,50 @@ eq(slide.emf,-i.b*.12*i.speed);eq(slide.heat,-slide.force*slide.v);
 eq(open.emf,slide.emf);eq(open.i,0);eq(open.heat,0);
 assert.ok(read("enter",.5).flux>0);eq(read("enter",.5).emf,0);
 assert.ok(read("magnet",.38).emf*read("magnet",.62).emf<0);
+assert.ok(read("magnet",.38).emf<0);
+const magnet=P.magnetFlux(i);
+eq(read("magnet",.5).flux,magnet.centerField*Math.PI*(i.size/200)**2);
+assert.ok(magnet.centerField>0&&magnet.centerField<i.b);
+eq(P.magnetFlux({...i,size:18}).radius,magnet.radius);
+eq(read("magnet",.38).emf,-read("magnet",.38,{pole:-1}).emf);
+eq(read("magnet",.38).flux,read("magnet",.62).flux);
 eq(read("magnet",.5).emf,0);eq(read("rotate",.25).flux,0);
 eq(read("vary",.1).emf,0);eq(read("vary",.9).emf,0);
 
 const accel={initial:80,voltage:400,b:.65,crossings:8};
-eq(P.linearAcceleration(accel,-26).energy,80);
-eq(P.linearAcceleration(accel,26).energy,1680);
-eq(P.linearAcceleration(accel,-18).energy,280);
+for(const config of [accel,{initial:20,voltage:50},{initial:400,voltage:1200}]){
+  const lin=P.linearAcceleration(config);
+  eq(lin.at(0).energy,config.initial);
+  eq(lin.at(1).energy,config.initial+4*config.voltage);
+  for(const [j,gap] of lin.gaps.entries()){
+    const t=lin.at(gap.centerTime/lin.duration), a=lin.tubes[j], b=lin.tubes[j+1];
+    eq(t.energy,config.initial+(j+.5)*config.voltage);
+    eq(t.position,(gap.start+gap.end)/2);
+    if(j)eq(gap.centerTime-lin.gaps[j-1].centerTime,1/(2*lin.frequency),1e-14);
+    assert.ok(b.end-b.start>a.end-a.start);
+    eq(lin.at((b.startTime+b.endTime)/(2*lin.duration)).energy,config.initial+(j+1)*config.voltage);
+  }
+}
 const cy=P.cyclotron(accel);
 for(let i=1;i<cy.arcs.length;i++){
   vv(cy.arcs[i].point(0),cy.arcs[i-1].point(1));
   eq(cy.arcs[i].energy-cy.arcs[i-1].energy,400);
   eq(cy.arcs[i].radius/cy.arcs[i-1].radius,Math.sqrt(cy.arcs[i].energy/cy.arcs[i-1].energy));
 }
-const atmosphere=P.aurora({shell:2.5,pitch:0,longitude:37});
+for(const arc of cy.arcs){
+  const t=.26, a=arc.point(t-h), b=arc.point(t), c=arc.point(t+h);
+  const v=P.sub(c,a), curvature=P.sub(P.sum(a,c),P.mul(b,2));
+  assert.ok(P.dot(P.unit(P.cross(v,[0,0,accel.b])),P.unit(curvature))>.999999);
+}
+const atmosphere=P.aurora({shell:2.5,pitch:0,longitude:37,hemisphere:1});
 assert.ok(atmosphere.reachesAtmosphere);
 eq((P.length(atmosphere.point(atmosphere.end))-1)*atmosphere.earthKm,110);
-const mirror=P.aurora({shell:2.5,pitch:55,longitude:37});
+const mirror=P.aurora({shell:2.5,pitch:55,longitude:37,hemisphere:-1});
 assert.ok(!mirror.reachesAtmosphere);
 eq(Math.sin(P.rad(55))**2*mirror.ratio(mirror.end),1);
+eq(mirror.latitudeAt(.5),-mirror.end);
+eq(mirror.latitudeAt(.3),mirror.latitudeAt(.7));
+eq(P.length(mirror.magneticToEarth(mirror.point(mirror.end))),P.length(mirror.point(mirror.end)));
 const transformer=P.transformer({primary:150,secondary:300,voltage:60,frequency:60,load:100,closed:0});
 eq(transformer.secondary,120);eq(transformer.current,0);
 eq(transformer.at(.25).flux,0);eq(transformer.at(.25).secondary,120*Math.SQRT2);

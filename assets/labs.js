@@ -63,26 +63,15 @@
         const dx=x-a,dy=y-b,r=Math.max(1,Math.hypot(dx,dy));
         return [ex+q*dx/r**3,ey+q*dy/r**3];
       },[0,0]);
-      let s=mesh();
-      for (const [a,b,q] of src) for(let i=0;i<16;i++){
-        let x=a+17*Math.cos(i*tau/16), y=b+17*Math.sin(i*tau/16), escaped=false;
-        const pts=[[x,y]];
-        for(let k=0;k<240;k++){
-          const [vx,vy]=field(x,y), v=Math.hypot(vx,vy);
-          if(v<1e-8) break;
-          const [mx,my]=field(x+q*vx/v*1.5,y+q*vy/v*1.5), m=Math.hypot(mx,my);
-          if(m<1e-8) break;
-          x+=3*q*mx/m; y+=3*q*my/m;
-          if(x<24||x>536||y<34||y>292){escaped=true;break;}
-          pts.push([x,y]);
-          if(src.some(([cx,cy,sg])=>sg!==q&&Math.hypot(x-cx,y-cy)<15)) break;
-        }
-        if(q<0&&!escaped)continue;
+      let s=mesh()+'<defs><clipPath id="basic-field-frame"><rect x="24" y="34" width="512" height="258"/></clipPath></defs><g clip-path="url(#basic-field-frame)">';
+      const lines=EMPhysics.electricStreamlines({q:6,q2:6*p.s,spacing:12});
+      for(const {points,sign} of lines)for(const side of [-1,1]){
+        const pts=points.map(([x,y])=>[280+x*202/12,164+side*y*202/12]);
         s+=path(pts,colors.teal,1.05);
-        const j=Math.min(23,Math.floor(pts.length*.62));
-        if(j>1) s+=arrow(...pts[q>0?j-2:j],...pts[q>0?j:j-2],colors.teal,1,5);
+        const j=Math.min(12,Math.floor(pts.length*.54));
+        if(j>1)s+=arrow(...pts[sign>0?j-2:j],...pts[sign>0?j:j-2],colors.teal,1,5);
       }
-      s+=src.map(([a,b,q])=>charge(a,b,q)).join("");
+      s+="</g>"+src.map(([a,b,q])=>charge(a,b,q)).join("");
       const x=280,y=164-p.y*scale, [ex,ey]=field(x,y), m=Math.hypot(ex,ey);
       const len=Math.min(55,Math.max(26,m*195000));
       s+=circ(x,y,5,colors.ink,"#142d38",1.5)+t(x+9,y-9,"P",colors.ink);
@@ -101,7 +90,7 @@
       const max=.12, yMax=20, xTicks=[[0,"0"],[.04,"0.04"],[.08,"0.08"],[.12,"0.12"]];
       const {s,x,y}=chart({xMax:max,yMax,xLabel:"x（m）",yLabel:"V（V）",xTicks,yTicks:[[0,"0"],[5,"5"],[10,"10"],[15,"15"],[20,"20"]],series:[{points:[[0,p.v],[p.d,0]],color:colors.teal}]});
       const a=p.d*p.p/100,v=p.v*(1-p.p/100);
-      return [s+l(x(a),y(v),x(a),y(0),colors.amber,1,"5 4")+circ(x(a),y(v),6,colors.amber)+t(x(a)+10,y(v)-10,"P",colors.amber),[output("電場 E（向負板）",`${f(p.v/p.d,1)} N/C`),output("P 點電位（以負板為零）",`${f(v)} V`)]];
+      return [s+l(x(a),y(v),x(a),y(0),colors.amber,1,"5 4")+circ(x(a),y(v),6,colors.amber)+t(x(a)+10,y(v)-10,"P",colors.amber),[output("板間電場 E（向負板）",`${f(p.v/p.d,1)} N/C`),output("P 點電位（以負板為零）",`${f(v)} V`)]];
     }),
     lab("compass","電流與指南針",[
       range("i","電流 I（正值射出紙面）",-12,12,1,6,"A"),

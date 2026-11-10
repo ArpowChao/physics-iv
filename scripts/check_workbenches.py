@@ -101,6 +101,16 @@ def run(base, out):
         expect("slice", "y = 0 cm")
         assert read("work").inner_text() != "0 nJ"
 
+        go("labs/potential-map/plates")
+        val("x", -9)
+        expect("potential", "14 V")
+        expect("field", "表面兩側值不同")
+        val("x", 0)
+        expect("vector", "(77.8, 0, 0) N/C")
+        val("x", 9)
+        expect("potential", "0 V")
+        expect("field", "表面兩側值不同")
+
         go("labs/potential-map/field-lines")
         page.get_by_role("button", name="2D 平面").click()
         page.get_by_role("button", name="XY", exact=True).click()
@@ -127,6 +137,7 @@ def run(base, out):
         assert read("vector").inner_text() == field
 
         go("labs/particle-apps/linear")
+        expect("frequency", "2 MHz")
         val("phase", 0)
         expect("energy", "80 eV")
         val("phase", 100)
@@ -138,12 +149,15 @@ def run(base, out):
         expect("crossing", "8")
         expect("energy", "3,280 eV")
         go("labs/particle-apps/aurora")
-        assert page.locator("#bench-plot svg[data-theme=space] polygon[fill='url(#art-curtain)']").count() > 0
-        page.get_by_role("button", name="小夾角：進入大氣").click()
-        expect("fate", "可進入高層大氣")
+        curtain = page.locator("#bench-plot svg[data-theme=space] polygon[fill='url(#art-curtain)']").first
+        page.get_by_role("button", name="小夾角：到達參考面").click()
+        expect("fate", "可達 110 km 參考面")
         expect("altitude", "110 km")
+        assert curtain.count() == 0
+        page.get_by_role("button", name="電子群沉降").click()
+        curtain.wait_for()
         val("phase", 99)
-        page.locator("#bench-plot polygon[fill='url(#art-curtain)']").first.wait_for(state="detached")
+        curtain.wait_for(state="detached")
         page.get_by_role("button", name="大夾角：磁鏡折返").click()
         expect("fate", "已在磁鏡點折返")
         assert page.locator("#bench-plot polygon[fill='url(#art-curtain)']").count() == 0

@@ -13,8 +13,8 @@
     solenoid:"旋轉銅線圈，或把銀色測點拖出管口，比較磁場讀值。",
     "field-lines":"紅、藍球分別代表正、負電荷。曲線表示電場走向，銀色球是可拖曳的測點。",
     charges:"曲線連接電位相同的位置。拖曳銀色測點會移動取樣切片。",
-    plates:"銅色板接較高電位。把銀色測點沿板面拖動，再試著從一塊板移向另一塊。",
-    sphere:"拖曳銀色測點從導體球內移到球外，比較電位與電場。",
+    plates:"銅色正板在 x 較小的一側，鋼色負板為 0 V。圖中只畫出理想無限大平行板的一部分。",
+    sphere:"淡色區域是導體球的剖面。拖曳測點從球內移到球外，比較電位與電場。",
     particle:"亮線是粒子已走過的路徑。播放後，試著改變入射角和電荷正負。",
     wire:"改變銅導線的方向，再開啟分析標註查看磁力。",
     parallel:"反轉其中一條導線的電流，在讀值區比較互吸與互斥。",
@@ -25,9 +25,9 @@
     rotate:"銅線圈繞鋼軸轉動。暫停在不同角度，對照磁通量與感應電動勢。",
     vary:"銅線圈固定在原位。底色深淺表示外加磁場強弱，藍色與紫色分別代表正向和反向。",
     transformer:"深銅色為原線圈，淺金色為副線圈。兩組繞線共用鋼製鐵芯。",
-    linear:"兩段漂移管之間是加速間隙。質子通過間隙時變成暖色，對照動能讀值。",
+    linear:"質子在間隙加速，在管內等速。後段漂移管隨速率加長，使質子保持與射頻電場同步。",
     cyclotron:"質子每次穿過中央間隙，就進入半徑更大的半圓。亮線表示已走過的路徑。",
-    aurora:"播放追蹤電子。到達高層大氣時會顯示極光幕，磁鏡折返時則可看到電子沿原路返回。",
+    aurora:"虛線是選取的磁力線。可切換單顆電子與電子群，勾選分析標註可拉遠看完整磁力線。",
     "plane-wave":"綠色曲線表示電場，藍色曲線表示磁場。播放觀察波往前傳播。"
   };
   const url=(bench,mode)=>"#labs/"+bench.id+(mode?"/"+mode:"");
@@ -39,7 +39,7 @@
     "potential-map/charges":[["等量異號中點",{q:6,q2:-6,x:0,y:0,z:0}],["等量同號中點",{q:6,q2:6,x:0,y:0,z:0}]],
     "magnetic-force/particle":[["平行：直線",{theta:0}],["垂直：圓周",{theta:90}],["斜入射：螺旋",{theta:65}]],
     "magnetic-force/motor":[["0°",{theta:0}],["90°",{theta:90}],["180°",{theta:180}],["270°",{theta:270}]],
-    "particle-apps/aurora":[["小夾角：進入大氣",{pitch:0,phase:100}],["大夾角：磁鏡折返",{pitch:55,phase:55}]],
+    "particle-apps/aurora":[["小夾角：到達參考面",{pitch:0,phase:100,emission:0}],["大夾角：磁鏡折返",{pitch:55,phase:60,emission:0}],["電子群沉降",{pitch:0,phase:100,emission:1}]],
     "induction/enter":[["進入",{phase:18}],["全在場內",{phase:50}],["離開",{phase:82}]],
     "induction/magnet":[["接近",{phase:38}],["線圈中央",{phase:50}],["離開",{phase:62}]],
     "induction/rotate":[["初始",{phase:0,cycles:1}],["四分之一圈",{phase:25,cycles:1}]],
@@ -161,6 +161,10 @@
       const projection=view.dimension==="2d"?{...overlay,plane:view.plane,zoom:1}:{...camera,...overlay};
       const r=bench.draw(mode.id,p,projection,state);
       plot.innerHTML=r.diagram;
+      if(mode.id==="field-lines"){
+        find(".bench-scene-caption").textContent=flat&&view.plane==="yz"?
+          "這是 x = 0 切片。符號表示電場垂直切片的方向，箭頭表示平面內的分量。":sceneCaptions[mode.id];
+      }
       readouts.innerHTML=r.rows.map(([k,label,value])=>`<div><dt>${label}</dt><dd data-reading="${k}">${value}</dd></div>`).join("");
       const legend=find(".bench-legend");
       legend.hidden=!view.labels&&mode.id!=="field-lines";

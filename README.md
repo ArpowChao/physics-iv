@@ -22,7 +22,7 @@
 | [粒子加速器與極光](https://arpowchao.github.io/physics-iv/#labs/particle-apps) | 直線加速器、迴旋加速器、偶極地磁場中的粒子沉降與磁鏡折返。 |
 | [電磁波](https://arpowchao.github.io/physics-iv/#labs/em-wave) | 調整偏振角，從不同平面看 E、B 與傳播方向。 |
 
-粒子加速器採高中非相對論模型。工作臺預設顯示實驗裝置與運動，勾選「分析標註」可疊加向量和符號。極光採理想偶極地磁場，以高度 110 km 判定粒子是否抵達高層大氣。圖中放大迴旋半徑與發光幕高度，發光幕的形狀和顏色用來示意大氣發光。地球的海陸輪廓來自公開領域的 Natural Earth 資料。 [OpenStax 迴旋加速器](https://openstax.org/books/university-physics-volume-2/pages/11-7-applications-of-magnetic-forces-and-fields) · [NASA 極光說明](https://science.nasa.gov/sun/auroras/) · [Natural Earth 陸地輪廓](https://www.naturalearthdata.com/downloads/110m-physical-vectors/110m-land/)。
+粒子加速器採非相對論模型。直線加速器依同步條件計算漂移管長度。工作臺預設顯示實驗裝置與運動，勾選「分析標註」可疊加向量和符號。極光採傾斜偶極地磁場，以 110 km 為比較折返高度的參考面。電子運動顯示導引中心，電子群模式的光幕示意高層大氣發光。海陸輪廓來自公開領域的 Natural Earth 資料。 [OpenStax 迴旋加速器](https://openstax.org/books/university-physics-volume-2/pages/11-7-applications-of-magnetic-forces-and-fields) · [Berkeley Lab 直線加速器](https://abc.lbl.gov/wallchart/chapters/11/3.html) · [NASA 極光說明](https://science.nasa.gov/sun/auroras/) · [Natural Earth 陸地輪廓](https://www.naturalearthdata.com/downloads/110m-physical-vectors/110m-land/)。
 
 必歐－沙伐工作臺的圖面、測點拖曳和讀值配置參考 [SAMN Physics 的必歐－沙伐模擬](https://samnphysics.github.io/physicssimulation/electromagnetism/biosavrit.html)。首頁字型由站內的 Outfit 與 Noto Sans TC 子集提供，授權文件見 `assets/fonts/`。
 
