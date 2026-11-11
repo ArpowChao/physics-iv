@@ -155,10 +155,22 @@
       const other = sources.find(s => s !== source), sign = Math.sign(source.q);
       const count = flux ? Math.round(Math.abs(source.q) * density) : Math.abs(source.q) * density / (mirrored ? 2 : 1);
       // 3D 排法：半平面數取 count 的因數中最接近 1.8·√count 者。
-      let planes = 1;
-      if (flux) for (let d = 1; d <= count; d++) if (count % d === 0 && Math.abs(d - 1.8 * Math.sqrt(count)) < Math.abs(planes - 1.8 * Math.sqrt(count))) planes = d;
+      // 異號時優先選「同時整除總條數與相連條數」的半平面數：每個半平面的相連條數相同，圖形才對軸對稱。
+      const gcd = (a, b) => b ? gcd(b, a % b) : a, target = 1.8 * Math.sqrt(count);
+      const bestDivisor = n => { let best = 1; for (let d = 1; d <= n; d++) if (n % d === 0 && Math.abs(d - target) < Math.abs(best - target)) best = d; return best; };
+      const joinedTotal = flux && opposed ? Math.round(Math.abs(other.q) * density) : 0;
+      let planes = flux ? bestDivisor(count) : 1, aligned = !opposed;
+      if (flux && opposed) {
+        const shared = bestDivisor(gcd(count, joinedTotal));
+        if (shared >= 3) { planes = shared; aligned = true; }
+      }
       const rings = flux ? count / planes : 0;
-      const aligned = !opposed || Number.isInteger(rings * Math.abs(other.q) / Math.abs(source.q));
+      // 相連條數太少、排不成對稱時：各半平面錯開，錯開順序用互質步長打散，讓相連線分散在軸的四周。
+      let stride = 1;
+      for (let d = 1; d < planes; d++) if (gcd(d, planes) === 1 && Math.abs(d - .618 * planes) < Math.abs(stride - .618 * planes)) stride = d;
+      // 第 j 小的錯開量放在第 (j·stride) mod planes 個半平面 → 半平面 k 的錯開量是 k·stride⁻¹ mod planes。
+      let inverse = 1;
+      while ((inverse * stride) % planes !== 1 % planes) inverse++;
       const connCount = !boundary && opposed ? Math.abs(other.q) * density / (mirrored ? 2 : 1) : 0;
       const distCount = count - connCount;
       const dir = other ? Math.sign(other.x - source.x) : 1;
@@ -174,7 +186,7 @@
           // 若對稱排法數不出理論的相連條數（rings·|q小|/|q大| 不是整數），各半平面的環帶依序錯開，
           // 讓 cosθ 仍是均勻取樣，相連條數才會精確。
           const k = i % planes, ring = Math.floor(i / planes);
-          const fraction = aligned ? (ring + .5) / rings : (ring * planes + k + .5) / count;
+          const fraction = aligned ? (ring + .5) / rings : (ring * planes + (k * inverse) % planes + .5) / count;
           level = source.q * (1 - 2 * fraction) + (other ? other.q * Math.sign(source.x - other.x) : 0);
           connecting = opposed && (level - levelSep) * (level - levelInner) < 0;
         } else if (!boundary && opposed) {

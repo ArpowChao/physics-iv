@@ -161,7 +161,7 @@ const wave=P.emWave({frequency:300,angle:37,phase:24});
 vv(P.cross(wave.electric,wave.magnetic),[1,0,0]);
 eq(wave.at(20),wave.at(20+wave.wavelength));
 // 3D 電力線：總條數與相連條數必須等於 密度×|Q| 的理論值，且每條線代表相同電通量。
-for(const density of [1,2,4,6]) for(const [q,q2] of [[6,-6],[5,-1],[6,-3],[4,4],[6,2],[-3,6],[1,-1],[7,-2],[12,-5],[3,0]]){
+for(const density of [1,2,4,6]) for(const [q,q2] of [[6,-6],[5,-1],[6,-3],[4,4],[6,2],[-3,6],[1,-1],[7,-2],[12,-5],[3,0],[12,-1],[-1,12],[8,-3]]){
   const config={spacing:10,q,q2}, lines=P.electricStreamlines(config,90,density,true), pair=P.electricPair(config,density);
   assert.equal(lines.length,pair.joined+pair.distant,`3D line total for ${q}, ${q2} at density ${density}`);
   assert.equal(lines.filter(line=>line.end!==null).length,pair.joined,`3D joined lines for ${q}, ${q2} at density ${density}`);
@@ -169,6 +169,15 @@ for(const density of [1,2,4,6]) for(const [q,q2] of [[6,-6],[5,-1],[6,-3],[4,4],
     const own=lines.filter(line=>line.source===source), angles=[...new Set(own.map(line=>line.phi.toFixed(6)))].map(Number).sort((a,b)=>a-b);
     assert.equal(own.length%angles.length,0,"equal number of lines on every half-plane");
     angles.forEach((angle,i)=>assert.ok(Math.abs(angle-angles[0]-2*Math.PI*i/angles.length)<1e-5,"half-planes evenly spaced about the axis"));
+    // 相連線不可擠在軸的同一側：每個半平面的相連條數最多差 1；條數夠分時必須完全相同。
+    const perPlane=angles.map(angle=>own.filter(line=>line.end!==null&&Math.abs(line.phi-angle)<1e-5).length);
+    assert.ok(Math.max(...perPlane)-Math.min(...perPlane)<=1,`joined lines spread around the axis for ${q}, ${q2} at density ${density}`);
+    // 相連線若只占少數幾個半平面，這些半平面不可相鄰成一團
+    const used=perPlane.map((n,i)=>n>Math.min(...perPlane)?i:-1).filter(i=>i>=0);
+    if(used.length>=2){
+      const gaps=used.map((plane,i)=>((used[(i+1)%used.length]-plane+angles.length-1)%angles.length)+1);
+      assert.ok(Math.max(...gaps)<=.75*angles.length,`joined lines not bunched for ${q}, ${q2} at density ${density}`);
+    }
   }
 }
 console.log("Verified electromagnetic models, accelerator energy, magnetic mirroring, transformer ratios and plane wave orientation.");
