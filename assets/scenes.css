@@ -1,0 +1,17 @@
+/* 情境實驗（Canvas）版面 */
+.scene-root { display: grid; gap: 12px; margin: 14px 0 18px; }
+.scene-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.scene-tab { padding: 8px 13px; border: 1px solid #adc4ca; border-radius: 8px; background: #fff; color: var(--ink); font: 700 .93rem/1.3 var(--body); cursor: pointer; }
+.scene-tab:hover { background: #e6f1ef; }
+.scene-tab[aria-selected=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.scene-hint { margin: 0; padding: 9px 13px; border-left: 4px solid var(--accent); background: #eaf3f1; border-radius: 0 6px 6px 0; }
+.scene-stage { border: 1px solid #cfdfe2; border-radius: 12px; overflow: hidden; background: #f7fbfb; }
+.scene-stage canvas { display: block; inline-size: 100%; }
+.scene-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.scene-ctl { display: inline-flex; align-items: center; gap: 7px; font-size: .93rem; }
+.scene-ctl output { font: 700 .9rem var(--mono), var(--body); min-inline-size: 2.6em; }
+.scene-ctl select { padding: 4px 8px; border: 1px solid #adc4ca; border-radius: 6px; font: inherit; background: #fff; }
+.scene-readouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 0; }
+.scene-readouts > div { padding: 8px 12px; border: 1px solid #cfdfe2; border-radius: 9px; background: #fff; }
+.scene-readouts dt { color: #5b747d; font-size: .82rem; }
+.scene-readouts dd { margin: 0; font: 700 1.08rem/1.5 var(--mono), var(--body); }

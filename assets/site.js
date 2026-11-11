@@ -120,7 +120,7 @@
       <section class="lesson-goal"><span class="lesson-kicker">這節要學會</span><p>${s.goal}</p></section>
       <div class="lesson-jumps">${chips([reading(s),curriculum(s)])}<a class="text-link" href="#course/${s.id}/1">本節觀念練習・${EM.conceptPractice[s.id].flat().length} 題 ↓</a></div>
       <section class="observe-card"><span class="lesson-kicker">01　先觀察</span><p>${s.lead}</p>
-        <div class="action-row">${benchFor(s.id)?link(benchURL(benchFor(s.id),s.id),"開啟 2D／3D 工作臺 →","primary"):""}${s.id==="2-4"?particleLinks():""}${link("#labs/"+s.lab,benchFor(s.id)?"先看基礎示意":"開啟實驗觀察 →")}</div></section>
+        <div class="action-row">${EM.scenes.filter(x=>x.sections.includes(s.id)).map(x=>link("#labs/"+x.id,"動手拖曳："+x.title.split("：")[0]+" →","primary")).join("")}${benchFor(s.id)?link(benchURL(benchFor(s.id),s.id),"開啟 2D／3D 工作臺 →","primary"):""}${s.id==="2-4"?particleLinks():""}${link("#labs/"+s.lab,benchFor(s.id)?"先看基礎示意":"開啟實驗觀察 →")}</div></section>
       <h2 class="section-title">02　抓住核心關係</h2>
       <section class="formula-card"><div class="equation"><div class="formula">${s.formula}</div></div>
         <details class="formula-detail"><summary>公式怎麼用・條件與說明</summary><p>${s.condition}</p></details>
@@ -175,6 +175,7 @@
 
   function labIndex() {
     main.innerHTML=`<div class="shell page">${sectionHead("LAB / 互動實驗","電磁實驗室","每次先改一個變因，記下讀值，再回到公式解釋。")}
+      <section class="lab-group"><h2 class="section-title">情境實驗（可直接拖曳）</h2><div class="bench-index">${EM.scenes.map(x=>`<a class="lab-card" href="#labs/${x.id}"><span class="mono">情境實驗 ${x.sections.join("・")}</span><strong>${x.title}</strong><span>${x.description}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div></section>
       <section class="lab-group"><h2 class="section-title">2D／3D 工作臺</h2>
         <div class="bench-index">${EM.workbenches.map(b=>`<a class="lab-card" href="#labs/${b.id}"><span class="mono">進階實驗 ${b.sections.join("・")}</span><strong>${b.title}</strong><span>${b.description}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div>
       </section>
@@ -385,8 +386,9 @@
       else if(c){chapterView(c);title=c.name;activeChapter=c;active=hash;}
       else{courseIndex();title="課程導讀";}
     }else if(page==="labs"){
-      const config=lab(id), bench=EM.workbenches.find(b=>b.id===id);
-      if(bench){cleanup=EM.mountWorkbench(main,bench,topic);title=bench.title;}
+      const config=lab(id), bench=EM.workbenches.find(b=>b.id===id), scene=EM.scenes.find(x=>x.id===id);
+      if(scene){cleanup=EM.mountScene(main,scene,topic);title=scene.title;}
+      else if(bench){cleanup=EM.mountWorkbench(main,bench,topic);title=bench.title;}
       else if(config){experiment(config);title=config.name;}
       else{labIndex();title="電磁實驗室";}
     }else if(page==="concepts"){
