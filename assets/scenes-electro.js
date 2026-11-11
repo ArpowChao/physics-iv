@@ -4,7 +4,7 @@
  */
 (() => {
   const K = 8.988e9, E_CHARGE = 1.602e-19, M_E = 9.109e-31, M_P = 1.673e-27;
-  const {TAU, C, clamp, fitCanvas, makeLabeler, arrow, vector, grid, charge, overlaps, num, niceStep, chart, build, draggable, loop} = EM.sceneKit;
+  const {TAU, C, clamp, stageHeight, fitCanvas, makeLabeler, arrow, vector, grid, charge, overlaps, num, niceStep, chart, build, draggable, loop} = EM.sceneKit;
 
   /* =====================================================================
    * 庫侖定律
@@ -50,7 +50,7 @@
     const angle = (fx, fy) => { let a = Math.atan2(-fy, fx) * 180 / Math.PI; if (a < 0) a += 360; return a; };
 
     function draw() {
-      const w0 = cv.clientWidth || 800, h = clamp(Math.round(w0 * 0.5), 300, 470);
+      const h = stageHeight(cv, 0.5, 300, 470);
       const {ctx, w} = fitCanvas(cv, h);
       const first = view.s === 20 && view.w === 800;
       view = {s: w / 30, w, h};
@@ -159,10 +159,10 @@
     for (const id of ["q1", "q2", "q3", "scale", "parts", "axis"]) ui.on(id, render);
     ui.on("reset", () => { reset(); render(); });
     ui.onTab(setMode);
-    const ro = new ResizeObserver(render); ro.observe(cv);
+    const ro = new ResizeObserver(render); ro.observe(cv); window.addEventListener("resize", render);
     setMode("two");
     root.sceneApi = {boxes: () => boxes, state: () => ({pts: pts.map(p => ({...p})), q: qs(), mode}), force: (i, j) => force(i, j, qs()), place(i, x, y) { pts[i] = {x, y}; render(); }, setMode};
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); window.removeEventListener("resize", render); };
   }
 
   /* =====================================================================
@@ -260,7 +260,7 @@
       return segs;
     }
     function draw() {
-      const w0 = cv.clientWidth || 800, h = clamp(Math.round(w0 * 0.6), 320, 560);
+      const h = stageHeight(cv, 0.6, 320, 560);
       const {ctx, w} = fitCanvas(cv, h);
       if (view.w !== w || view.h !== h) { view = {s: w / 40, w, h, cx: w / 2, cy: h / 2}; dirty(); }
       if (!cache) cache = {grid: computeGrid(), lines: null};
@@ -399,10 +399,10 @@
     ui.on("del", () => { if (sel < 0 || !charges.length) return; charges.splice(sel, 1); sel = charges.length ? 0 : -1; dirty(); render(); });
     for (const id of ["vec", "lines", "equi", "map", "profile"]) ui.on(id, render);
     ui.onTab(load);
-    const ro = new ResizeObserver(render); ro.observe(cv);
+    const ro = new ResizeObserver(render); ro.observe(cv); window.addEventListener("resize", render);
     load("single");
     root.sceneApi = {boxes: () => boxes, load, field: (x, y) => fieldAt(charges, x, y), setProbe(x, y) { probe = {x, y}; render(); }, charges: () => charges.map(c => ({...c})), lines: () => (cache?.lines || fieldLines())};
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); window.removeEventListener("resize", render); };
   }
 
   /* =====================================================================
@@ -440,7 +440,7 @@
       return pts;
     }
     function draw() {
-      const w0 = cv.clientWidth || 800, h = clamp(Math.round(w0 * 0.55), 300, 480);
+      const h = stageHeight(cv, 0.55, 300, 480);
       const {ctx, w} = fitCanvas(cv, h);
       view = {s: w / 21, w, h};
       const s = view.s, L = makeLabeler(ctx, w, h), cy = h / 2, P = (x, y) => [x * s, cy - y * s], sol = solve(), d = ui.get("d");
