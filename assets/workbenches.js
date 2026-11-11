@@ -459,7 +459,19 @@
         const all = streamlineCache.fluxPaths, arrowStride = all.length > 16 ? Math.ceil(all.length / 12) : 1;
         all.forEach(({ points, sign, end, phi }, i) => {
           if (camera.electroLinkedOnly && end === null) return;
-          drawStream(s, points.map(([x, y]) => fieldPlane([x, y], phi)), camera, extent, sign, false, end !== null ? linkedLine : distantLine, i % arrowStride === 0);
+          const trace = points.map(([x, y]) => fieldPlane([x, y], phi)), tint = end !== null ? linkedLine : distantLine;
+          drawStream(s, trace, camera, extent, sign, false, tint, false);
+          if (i % arrowStride) return;
+          // 方向箭頭：離電荷一小段距離、且在朝向觀察者的前側時才畫，箭頭至少 12 px 長。
+          for (let k = 3; k < trace.length; k++) {
+            if (length(sub(trace[k], trace[0])) < extent * .16 || s.depth(trace[k]) < 0) continue;
+            let j = k - 1;
+            while (j > 0 && length(sub(s.project(trace[j]), s.project(trace[k]))) < 12) j--;
+            const [x, y] = s.project(trace[k]);
+            if (x < 24 || x > 536 || y < 23 || y > 367) break;
+            s.arrow(sign > 0 ? trace[j] : trace[k], sign > 0 ? trace[k] : trace[j], tint, 2.1, undefined, true);
+            break;
+          }
         });
       } else if (pair) {
         const linked = paths.filter(path => path.end !== null);

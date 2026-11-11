@@ -160,4 +160,15 @@ eq(transformer.at(.25).flux,0);eq(transformer.at(.25).secondary,120*Math.SQRT2);
 const wave=P.emWave({frequency:300,angle:37,phase:24});
 vv(P.cross(wave.electric,wave.magnetic),[1,0,0]);
 eq(wave.at(20),wave.at(20+wave.wavelength));
+// 3D 電力線：總條數與相連條數必須等於 密度×|Q| 的理論值，且每條線代表相同電通量。
+for(const density of [1,2,4,6]) for(const [q,q2] of [[6,-6],[5,-1],[6,-3],[4,4],[6,2],[-3,6],[1,-1],[7,-2],[12,-5],[3,0]]){
+  const config={spacing:10,q,q2}, lines=P.electricStreamlines(config,90,density,true), pair=P.electricPair(config,density);
+  assert.equal(lines.length,pair.joined+pair.distant,`3D line total for ${q}, ${q2} at density ${density}`);
+  assert.equal(lines.filter(line=>line.end!==null).length,pair.joined,`3D joined lines for ${q}, ${q2} at density ${density}`);
+  for(const source of new Set(lines.map(line=>line.source))){
+    const own=lines.filter(line=>line.source===source), angles=[...new Set(own.map(line=>line.phi.toFixed(6)))].map(Number).sort((a,b)=>a-b);
+    assert.equal(own.length%angles.length,0,"equal number of lines on every half-plane");
+    angles.forEach((angle,i)=>assert.ok(Math.abs(angle-angles[0]-2*Math.PI*i/angles.length)<1e-5,"half-planes evenly spaced about the axis"));
+  }
+}
 console.log("Verified electromagnetic models, accelerator energy, magnetic mirroring, transformer ratios and plane wave orientation.");

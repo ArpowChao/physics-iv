@@ -154,6 +154,11 @@
     for (const source of origins) {
       const other = sources.find(s => s !== source), sign = Math.sign(source.q);
       const count = flux ? Math.round(Math.abs(source.q) * density) : Math.abs(source.q) * density / (mirrored ? 2 : 1);
+      // 3D 排法：半平面數取 count 的因數中最接近 1.8·√count 者。
+      let planes = 1;
+      if (flux) for (let d = 1; d <= count; d++) if (count % d === 0 && Math.abs(d - 1.8 * Math.sqrt(count)) < Math.abs(planes - 1.8 * Math.sqrt(count))) planes = d;
+      const rings = flux ? count / planes : 0;
+      const aligned = !opposed || Number.isInteger(rings * Math.abs(other.q) / Math.abs(source.q));
       const connCount = !boundary && opposed ? Math.abs(other.q) * density / (mirrored ? 2 : 1) : 0;
       const distCount = count - connCount;
       const dir = other ? Math.sign(other.x - source.x) : 1;
@@ -164,8 +169,13 @@
         let connecting = i < connCount;
         let level;
         if (flux) {
-          // 等電通量：cosθ 均勻取樣；ψ = q·cosθ + 另一電荷在軸上的常數項。
-          level = source.q * (1 - 2 * (i + .5) / count) + (other ? other.q * Math.sign(source.x - other.x) : 0);
+          // 等電通量：把球面切成 planes 個等寬的方位角扇區 × rings 個等高的 cosθ 環帶，
+          // 每一格立體角相同，各放一條線。線落在 planes 個繞軸等間隔的半平面上，圖形對軸對稱。
+          // 若對稱排法數不出理論的相連條數（rings·|q小|/|q大| 不是整數），各半平面的環帶依序錯開，
+          // 讓 cosθ 仍是均勻取樣，相連條數才會精確。
+          const k = i % planes, ring = Math.floor(i / planes);
+          const fraction = aligned ? (ring + .5) / rings : (ring * planes + k + .5) / count;
+          level = source.q * (1 - 2 * fraction) + (other ? other.q * Math.sign(source.x - other.x) : 0);
           connecting = opposed && (level - levelSep) * (level - levelInner) < 0;
         } else if (!boundary && opposed) {
           if (connecting) {
@@ -236,7 +246,7 @@
           }
         }
         // Odd densities can leave an unpaired line. Alternate its side across successive flux bands.
-        if (flux) paths.push({ points, sign, source: source.x, end, sides: [1], phi: (i * 2.399963229728653 + (source.x > 0 ? 1.3 : 0)) % TAU });
+        if (flux) paths.push({ points, sign, source: source.x, end, sides: [1], phi: TAU * ((i % planes) + (source.x > 0 && !opposed ? .5 : 0)) / planes });
         else paths.push({ points, sign, source: source.x, end, sides: mirrored ? [-1, 1] : [i % 2 === 0 ? 1 : -1] });
       }
     }
