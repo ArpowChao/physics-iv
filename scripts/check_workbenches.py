@@ -163,8 +163,13 @@ def run(base, out):
         page.locator("#bench-plot svg[data-projection=xy]").wait_for()
         facts = page.locator(".bench-electro-facts")
         page.wait_for_function("document.querySelector('.bench-electro-facts').textContent.includes('23.56')")
-        assert all(text in facts.inner_text() for text in ["10 條","2 條","8 條"])
         key=page.locator("#bench-plot [data-field-key]")
+        # 2D 是切面示意，不標線數；線數與電量成正比只在 3D 計數。
+        assert "切面示意" in key.text_content() and "條" not in key.text_content() and "23.56" in key.text_content()
+        assert "條" not in facts.inner_text()
+        page.get_by_role("button", name="3D 空間").click()
+        page.locator("#bench-plot svg[data-projection='3d']").wait_for()
+        assert all(text in facts.inner_text() for text in ["10 條","2 條","8 條"])
         assert all(text in key.text_content() for text in ["Q₁ 10 條","相連 2 條","通往無窮遠 8 條","23.56"])
         density = page.get_by_role("combobox", name="線條密度")
         assert density.input_value() == "2"
@@ -172,11 +177,12 @@ def run(base, out):
                               ("6", ["Q₁ 30 條", "相連 6 條", "通往無窮遠 24 條"])]:
             density.select_option(value)
             page.wait_for_function(
-                """([n,counts])=>counts.every(text=>document.querySelector('[data-field-key]').textContent.includes(text))
-                &&document.querySelectorAll('#bench-plot polyline[stroke="#b05219"][stroke-width="2.45"]').length===Number(n)""",
-                arg=[value, counts]
+                """(counts)=>counts.every(text=>document.querySelector('[data-field-key]').textContent.includes(text))""",
+                arg=counts
             )
             assert "23.56" in key.text_content()
+        page.get_by_role("button", name="2D 平面").click()
+        page.locator("#bench-plot svg[data-projection=xy]").wait_for()
         assert page.locator('td[data-measure="joined-share"][data-evidence="0"]').inner_text() == "20%"
         assert page.locator('td[data-measure="joined-share"][data-evidence="1"]').inner_text() == "100%"
         density.select_option("2")
@@ -199,7 +205,7 @@ def run(base, out):
         page.locator(".bench-depth select").select_option("front")
         page.wait_for_function("(old)=>document.querySelector('#bench-plot svg').innerHTML!==old",arg=old)
         assert "10 條" in facts.inner_text()
-        page.get_by_role("button",name="正視切面數線").click()
+        page.get_by_role("button",name="只看正視切面").click()
         assert page.locator(".bench-depth select").input_value()=="section"
         page.get_by_role("button", name="3D 電位地形", exact=True).click()
         page.locator("#bench-plot [data-potential-surface]").wait_for()
@@ -232,6 +238,7 @@ def run(base, out):
         page.locator("#bench-plot [data-projection=xy]").wait_for()
         assert page.locator("#bench-plot circle:not([data-probe])").count() == 3
         assert page.locator("#bench-plot .bench-plot-label").count() == 0
+        page.locator("#bench-plot [data-probe]").wait_for(state="attached")
         box = page.locator("#bench-plot [data-probe]").bounding_box()
         x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
         page.mouse.move(x, y)

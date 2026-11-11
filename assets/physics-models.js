@@ -125,14 +125,16 @@
     const potentialZeroes = opposed ? [half * (absQ - absQ2) / (absQ + absQ2), ...(net ? [half * (absQ + absQ2) / (absQ - absQ2)] : [])] : [];
     return { x, all: !a && !b, net, joined, distant: density * Math.abs(net), counts: [density * absQ, density * absQ2], potentialZeroes };
   }
-  function electricStreamlines(p, bound = 110, density = defaultLineDensity) {
-    return axialStreamlines(pairSources(p), bound, density);
+  // flux = true：真正的 3D 計數。每個電荷出入 density·|Q| 條線，在球面上等立體角分布
+  // （每條線代表相同的電通量），各自帶有繞軸方位角 phi。flux = false 則是含軸切面上的示意畫法。
+  function electricStreamlines(p, bound = 110, density = defaultLineDensity, flux = false) {
+    return axialStreamlines(pairSources(p), bound, density, undefined, flux);
   }
   function cavityStreamlines(p, bound, density = defaultLineDensity) {
     const { inner, outer, inside, outside } = cavityGeometry(p);
     return [...axialStreamlines(inside, bound, density, { radius: inner, enter: false }), ...axialStreamlines(outside, bound, density, { radius: outer, enter: true })];
   }
-  function axialStreamlines(sources, bound, density, boundary) {
+  function axialStreamlines(sources, bound, density, boundary, flux = false) {
     const opposed = sources.length === 2 && sources[0].q * sources[1].q < 0;
     // For opposite charges all connecting lines can be traced from the larger charge.
     const origins = boundary ? sources.slice(0, 1) : opposed ? [sources.reduce((a, b) => Math.abs(a.q) >= Math.abs(b.q) ? a : b)] : sources;
@@ -151,7 +153,7 @@
     const mirrored = density % 2 === 0;
     for (const source of origins) {
       const other = sources.find(s => s !== source), sign = Math.sign(source.q);
-      const count = Math.abs(source.q) * density / (mirrored ? 2 : 1);
+      const count = flux ? Math.round(Math.abs(source.q) * density) : Math.abs(source.q) * density / (mirrored ? 2 : 1);
       const connCount = !boundary && opposed ? Math.abs(other.q) * density / (mirrored ? 2 : 1) : 0;
       const distCount = count - connCount;
       const dir = other ? Math.sign(other.x - source.x) : 1;
@@ -159,9 +161,13 @@
       const levelSep = other ? (source.q + other.q) * dir : 0;
       const levelOuter = -levelSep;
       for (let i = 0; i < count; i++) {
-        const connecting = i < connCount;
+        let connecting = i < connCount;
         let level;
-        if (!boundary && opposed) {
+        if (flux) {
+          // 等電通量：cosθ 均勻取樣；ψ = q·cosθ + 另一電荷在軸上的常數項。
+          level = source.q * (1 - 2 * (i + .5) / count) + (other ? other.q * Math.sign(source.x - other.x) : 0);
+          connecting = opposed && (level - levelSep) * (level - levelInner) < 0;
+        } else if (!boundary && opposed) {
           if (connecting) {
             const margin = clamp(.42 / Math.sqrt(connCount), .15, .34);
             const u = connCount === 1 ? (distCount ? .28 : .5) : 1 - (i + margin) / (connCount - 1 + 2 * margin);
@@ -230,7 +236,8 @@
           }
         }
         // Odd densities can leave an unpaired line. Alternate its side across successive flux bands.
-        paths.push({ points, sign, source: source.x, end, sides: mirrored ? [-1, 1] : [i % 2 === 0 ? 1 : -1] });
+        if (flux) paths.push({ points, sign, source: source.x, end, sides: [1], phi: (i * 2.399963229728653 + (source.x > 0 ? 1.3 : 0)) % TAU });
+        else paths.push({ points, sign, source: source.x, end, sides: mirrored ? [-1, 1] : [i % 2 === 0 ? 1 : -1] });
       }
     }
     return paths;
