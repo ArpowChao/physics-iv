@@ -46,7 +46,8 @@ def run(base, out):
         unique_stems = set()
         for sid, lid, topic_count, groups in sections:
             go(f"course/{sid}")
-            assert page.locator(f'.observe-card a[href="#labs/{lid}"]').count() == 1
+            assert page.locator('.observe-card a[href^="#labs/"]').count() >= 1
+            assert page.locator(f'.observe-card a[href="#labs/{lid}"]').count() == 0
             assert page.locator("#sidebar .nav-item-node[aria-current=page]").get_attribute("href") == f"#course/{sid}"
             assert page.locator(".concept-card").count() == len(groups) == topic_count
             for i, group in enumerate(groups):
@@ -64,10 +65,9 @@ def run(base, out):
                     assert "答對了" in rendered.locator(".check-feedback").inner_text()
                 assert "2 / 2" in details.locator("[data-topic-score]").inner_text()
                 details.locator("summary").click()
-            go(f"labs/{lid}")
-            assert page.locator("#lab-plot svg").count() == 1
-            assert page.locator("#readouts dd").count() >= 2
-            assert not page.locator(".lab-layout").evaluate("(el) => /NaN|Infinity/.test(el.innerHTML)")
+            # 舊的基礎實驗網址導向新的情境實驗或工作臺
+            page.goto(f"{base.rstrip('/')}/#labs/{lid}")
+            page.wait_for_function("(old) => location.hash !== '#labs/' + old && document.querySelector('main').dataset.route.startsWith('labs/')", arg=lid, timeout=5000)
 
         go("course/1-1")
         page.locator("#mark").click()
@@ -86,58 +86,54 @@ def run(base, out):
         assert "答案是 B" in page.locator(".topic-practice[open] .check-feedback").first.inner_text()
         assert "2 / 2" in page.locator(".topic-practice[open] [data-topic-score]").inner_text()
 
-        go("labs/coulomb")
-        assert "0.3375 N" in readout()
-        value("r", .8)
-        assert "0.0844 N" in readout()
-        page.locator("#ctl-s").select_option("1")
-        assert "0.0844 N" in readout() and "互斥" in readout()
-        page.get_by_role("button", name="恢復初始值").click()
-        assert "0.3375 N" in readout() and "互吸" in readout()
-        go("labs/field")
-        value("y", 0)
-        page.locator("#ctl-s").select_option("1")
-        assert page.locator("#readouts dd").all_inner_texts() == ["0 N/C", "0 nN"]
-        go("labs/compass")
-        value("i", -6)
-        assert "30 μT・向下" in readout()
-        go("labs/wireforce")
-        value("theta", 0)
-        assert "0 N" in readout() and "無磁力" in readout()
-        value("theta", 90)
-        assert "0.3 N" in readout()
-        go("labs/particle")
-        value("theta", 90)
-        assert page.locator("#readouts dd").last.inner_text() == "0 m"
-        value("theta", 0)
-        assert "直線運動" in readout()
-        go("labs/flux")
-        assert "−" not in page.locator("#readouts dd").nth(0).inner_text()
-        assert "-0.6 V" in readout()
-        value("dt", .5)
-        assert "-1.2 V" in readout()
-        value("end", .2)
-        assert page.locator("#readouts dd").nth(1).inner_text() == "0 V"
-        go("labs/lenz")
-        assert "逆時針" in readout()
-        page.locator("#ctl-move").select_option("-1")
-        assert "順時針" in readout()
-        page.locator("#ctl-closed").select_option("0")
-        assert page.locator("#readouts dd").all_inner_texts() == ["非零", "無"]
-        go("labs/generator")
-        value("phase", 0)
-        assert page.locator("#readouts dd").nth(1).inner_text() == "0 V"
-        page.locator("#play").click()
-        page.wait_for_function("document.querySelector('#ctl-phase').value !== '0'")
-        page.locator("#play").click()
-        assert page.locator("#play").get_attribute("aria-pressed") == "false"
-        go("labs/transformer")
-        assert page.locator("#readouts dd").all_inner_texts() == ["120 V", "1 A", "120 W"]
-        page.locator("#ctl-ac").select_option("0")
-        assert page.locator("#readouts dd").all_inner_texts() == ["0 V", "0 A", "0 W"]
-        go("labs/wave")
-        value("freq", 4)
-        assert page.locator("#readouts dd").all_inner_texts() == ["3.00 × 10⁸ m/s", "7.5 cm", "0.25 ns"]
+        def ro(name):
+            return page.locator(f'[data-ro="{name}"]').inner_text()
+
+        def slide(name, val):
+            page.locator(f"#kc-{name}").fill(str(val))
+
+        go("labs/coulomb-law")
+        page.wait_for_function("document.querySelector('[data-ro=b]').textContent.includes('N')")
+        api = "document.querySelector('#scene-root').sceneApi"
+        page.evaluate(f"{api}.place(0, 10, 10); {api}.place(1, 20, 10)")
+        assert ro("a") == "10.0 cm" and ro("b") == "3.6 N" and ro("c") == "異號互吸", (ro("a"), ro("b"))
+        page.evaluate(f"{api}.place(1, 30, 10)")
+        assert ro("b") == "0.899 N"
+        slide("q2", 2)
+        assert ro("c") == "同號互斥" and ro("d") == "180°"
+        page.get_by_role("tab", name="三個電荷：力的合成").click()
+        assert "合力" in page.locator('[data-rl="c"]').inner_text()
+
+        go("labs/efield")
+        page.get_by_role("tab", name="等量異號").click()
+        page.evaluate("document.querySelector('#scene-root').sceneApi.setProbe(0, -4)")
+        assert ro("v") == "0 V" and ro("e") != "0 N/C" and ro("dir") == "0°", (ro("v"), ro("e"), ro("dir"))
+        page.get_by_role("tab", name="等量同號").click()
+        page.evaluate("document.querySelector('#scene-root').sceneApi.setProbe(0, 0)")
+        assert ro("e") == "0 N/C" and ro("v") != "0 V"
+        page.locator("#kc-profile").select_option("V")
+        assert page.locator("[data-kit-chart-wrap]").is_visible()
+
+        go("labs/deflect")
+        page.wait_for_function("document.querySelector('[data-ro=y]').textContent.includes('cm')")
+        y_electron = ro("y")
+        assert ro("y") == "0.469 cm（向上）", ro("y")
+        page.locator("#kc-kind").select_option("proton")
+        assert ro("y") == "0.469 cm（向下）" and ro("v0") != "—"
+        slide("V", 400)
+        assert "撞到" in ro("y")
+
+        go("labs/b-particle")
+        assert ro("r") == "10.4 cm" and ro("turn") == "逆時針", (ro("r"), ro("turn"))
+        slide("v", 20)
+        assert ro("r") == "20.9 cm"
+        page.locator("#kc-dir").select_option("out")
+        assert ro("turn") == "順時針"
+
+        go("labs/dc-motor")
+        page.evaluate("document.querySelector('#scene-root').sceneApi.set(0)")
+        page.wait_for_function("document.querySelector('[data-ro=tau]').textContent.startsWith('0.018')")
+        assert ro("F") == "0.45 N"
 
         exams = page.evaluate("EM.exams")
         assert len(exams) == 3
@@ -178,7 +174,7 @@ def run(base, out):
         assert len(seen_sections) == 12
 
         routes = ["home", "course", "course/chapter-2", "course/2-4", "course/1-2/1", "course/3-3/2",
-                  "labs", "labs/particle", "labs/conductors", "labs/transformer",
+                  "labs", "labs/coulomb-law", "labs/efield", "labs/deflect", "labs/b-particle", "labs/dc-motor", "labs/magnet-coil",
                   "concepts", "concepts/3", "practice", "practice/1", "practice/2", "practice/3", "reference"]
         for width in [320, 390, 768, 1024, 1440]:
             page.set_viewport_size({"width": width, "height": 940})

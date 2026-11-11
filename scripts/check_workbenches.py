@@ -37,7 +37,8 @@ def run(base, out):
             )
 
         go("labs")
-        assert page.locator(".bench-index .lab-card").count() == 6
+        assert page.locator(".bench-list .bench-card").count() == 6
+        assert page.locator(".bench-card-modes a").count() == 25
         modes = page.evaluate("EM.workbenches.flatMap(b=>b.modes.map(m=>['labs/'+b.id+'/'+m.id,m.controls]))")
         assert len(modes) == 25
         for route, controls in modes:
@@ -146,9 +147,9 @@ def run(base, out):
         expect("work", "0 nJ")
         val("x", 4)
         page.wait_for_function("!document.querySelector('[data-reading=work]').textContent.startsWith('0 nJ')")
-        page.get_by_role("button", name="沿軸剖面圖").click()
-        page.locator("#bench-plot[data-dimension=profile] svg:not([data-projection])").wait_for()
-        page.get_by_role("button", name="等電位線", exact=True).click()
+        # 點電荷模式只留電位地形與等電位線；電力線與剖面圖在「電力線與庫侖力」。
+        assert page.get_by_role("button", name="沿軸剖面圖").count() == 0
+        assert page.locator("[data-electro-display=lines]").count() == 0
         page.get_by_role("button", name="2D 平面").click()
         page.get_by_role("button", name="YZ", exact=True).click()
         expect("slice", "x = 4 cm")
@@ -207,10 +208,7 @@ def run(base, out):
         assert "10 條" in facts.inner_text()
         page.get_by_role("button",name="只看正視切面").click()
         assert page.locator(".bench-depth select").input_value()=="section"
-        page.get_by_role("button", name="3D 電位地形", exact=True).click()
-        page.locator("#bench-plot [data-potential-surface]").wait_for()
-        assert page.locator(".bench-depth select").is_hidden()
-        page.get_by_role("button", name="電力線", exact=True).click()
+        assert page.get_by_role("button", name="3D 電位地形", exact=True).count() == 0
 
         go("labs/potential-map/sphere", guided=True)
         assert "12 條" in page.locator(".bench-electro-facts").inner_text()

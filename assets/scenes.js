@@ -437,7 +437,9 @@
     return dispose;
   }
 
-  EM.scenes = scenes;
+  EM.scenes = (EM.scenes || []).concat(scenes.map(x => ({...x, chapter: 3})));
+  // 依章節排序：第 1、2、3 章
+  EM.scenes.sort((a, b) => a.sections[0].localeCompare(b.sections[0]));
   EM.mountScene = mountScene;
-  EM.sceneOverlaps = overlaps;
+  EM.sceneOverlaps = EM.sceneOverlaps || overlaps;
 })();
