@@ -52,3 +52,36 @@
 .bench-card-modes { display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: 6px; }
 .bench-card-modes a { padding: 4px 9px; border: 1px solid #cfdfe2; border-radius: 999px; font-size: .84rem; color: var(--ink); text-decoration: none; background: #f6fafa; }
 .bench-card-modes a:hover { background: #e6f1ef; border-color: var(--accent); }
+
+/* ---------- 全螢幕（投影上課用） ---------- */
+.full-btn { white-space: nowrap; }
+.scene-fullbar { display: flex; justify-content: flex-end; margin-bottom: -4px; }
+html.has-full { overflow: hidden; }
+.is-full { position: fixed !important; inset: 0; z-index: 2000; margin: 0 !important; max-width: none !important; width: 100vw; height: 100vh; overflow: auto; background: #f3f7f7; padding: 10px 16px 14px; box-sizing: border-box; }
+.is-full[data-full-title]::before { content: attr(data-full-title); display: block; font: 700 1.15rem/1.3 var(--body); color: var(--ink); margin: 0 0 4px; }
+.scene-root.is-full { display: flex; flex-direction: column; gap: 8px; }
+.scene-root.is-full[data-full-title]::before { order: 0; }
+.scene-root.is-full .scene-fullbar { position: absolute; top: 8px; right: 16px; margin: 0; }
+.scene-root.is-full .kit-note { display: none; }
+@media (min-width: 981px) {
+  .scene-root.is-full .kit-layout { flex: 1 1 0; min-height: 0; grid-template-columns: minmax(0, 1fr) 300px; align-items: stretch; }
+  .scene-root.is-full .kit-main { display: flex; flex-direction: column; min-height: 0; }
+  .scene-root.is-full .kit-main > .scene-stage[data-fill] { flex: 1 1 0; min-height: 0; position: relative; }
+  .scene-root.is-full .kit-main > .scene-stage[data-fill] canvas { position: absolute; inset: 0; width: 100%; }
+  .scene-root.is-full .kit-main > [data-kit-chart-wrap] { flex: 0 0 auto; }
+  .scene-root.is-full .kit-side { position: static; min-height: 0; overflow: auto; }
+}
+/* 3D 工作臺 */
+.bench-view-controls .full-btn { margin-left: auto; }
+.bench-shell.is-full .bench-layout { grid-template-columns: minmax(0, 1fr) minmax(300px, 27%); align-items: start; }
+.bench-shell.is-full .bench-layout[data-activity-layout="guided"] { grid-template-columns: minmax(0, 1fr) minmax(320px, 29%); grid-template-areas: "visual prediction" "visual evidence"; grid-template-rows: auto 1fr; }
+.bench-shell.is-full .bench-layout[data-activity-layout="guided"] .bench-visual { grid-area: visual; }
+.bench-shell.is-full .bench-prediction { grid-area: prediction; }
+.bench-shell.is-full .bench-evidence { grid-area: evidence; }
+.bench-shell.is-full #bench-plot svg { height: calc(100vh - 210px); min-height: 320px; width: 100%; }
+.bench-shell.is-full .bench-side { position: sticky; top: 0; max-height: calc(100vh - 30px); overflow: auto; }
+@media (max-width: 900px) {
+  .bench-shell.is-full .bench-layout, .bench-shell.is-full .bench-layout[data-activity-layout="guided"] { grid-template-columns: minmax(0, 1fr); grid-template-areas: none; }
+  .bench-shell.is-full #bench-plot svg { height: auto; min-height: 0; }
+}
+.bench-shell.is-full .bench-scene-caption, .bench-shell.is-full .bench-view-hint { display: none; }

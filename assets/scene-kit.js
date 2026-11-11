@@ -174,7 +174,7 @@
       <p class="scene-hint" data-kit-hint hidden></p>
       <div class="kit-layout">
         <div class="kit-main">
-          <div class="scene-stage"><canvas data-kit-canvas></canvas></div>
+          <div class="scene-stage" data-fill><canvas data-kit-canvas></canvas></div>
           ${wantChart ? `<div class="scene-stage" data-kit-chart-wrap><canvas data-kit-chart></canvas></div>` : ""}
           ${note ? `<p class="muted small kit-note">${note}</p>` : ""}
         </div>
@@ -230,6 +230,40 @@
     canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);
   }
 
+  /* ---------- 全螢幕 ---------- */
+  /* 畫布高度：一般時依寬度比例；全螢幕時撐滿可用高度 */
+  function stageHeight(cv, ratio, min, max) {
+    const w = cv.clientWidth || 800, full = cv.closest(".is-full");
+    if (!full) return clamp(Math.round(w * ratio), min, max);
+    const st = cv.closest(".scene-stage");
+    if (st && st.hasAttribute("data-fill") && innerWidth > 980) return Math.max(240, Math.floor(st.clientHeight));
+    return Math.max(min, Math.round(innerHeight * 0.62));
+  }
+  /* 在 host 裡放一顆「全螢幕」按鈕，切換 target 的全螢幕狀態。
+     支援 Fullscreen API 的瀏覽器用真正的全螢幕；不支援時（例如 iPhone）改成蓋滿視窗。 */
+  function fullscreenButton(target, host, {prepend = false, title = ""} = {}) {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "button full-btn"; btn.setAttribute("aria-pressed", "false");
+    const sync = on => {
+      target.classList.toggle("is-full", on); document.documentElement.classList.toggle("has-full", on);
+      btn.setAttribute("aria-pressed", String(on)); btn.textContent = on ? "✕ 結束全螢幕" : "⛶ 全螢幕";
+      if (on && title) target.setAttribute("data-full-title", title); else target.removeAttribute("data-full-title");
+      window.dispatchEvent(new Event("resize"));
+    };
+    btn.addEventListener("click", async () => {
+      const on = !target.classList.contains("is-full");
+      if (on) { sync(true); try { if (target.requestFullscreen) await target.requestFullscreen({navigationUI: "hide"}); } catch (e) { /* 改用蓋滿視窗 */ } }
+      else { if (document.fullscreenElement) await document.exitFullscreen().catch(() => {}); sync(false); }
+    });
+    const onChange = () => { if (!document.fullscreenElement && target.classList.contains("is-full") && btn.dataset.native === "1") sync(false); btn.dataset.native = document.fullscreenElement === target ? "1" : "0"; };
+    document.addEventListener("fullscreenchange", onChange);
+    const onKey = e => { if (e.key === "Escape" && target.classList.contains("is-full") && !document.fullscreenElement) sync(false); };
+    document.addEventListener("keydown", onKey);
+    sync(false);
+    prepend ? host.prepend(btn) : host.append(btn);
+    return () => { document.removeEventListener("fullscreenchange", onChange); document.removeEventListener("keydown", onKey); document.documentElement.classList.remove("has-full"); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); };
+  }
+
   /* ---------- 動畫迴圈 ---------- */
   function loop(frame) {
     let raf = 0, last = null, alive = true;
@@ -244,6 +278,6 @@
   }
 
   window.EM = window.EM || {};
-  EM.sceneKit = {TAU, C, clamp, fitCanvas, makeLabeler, arrow, vector, grid, charge, fieldGlyph, overlaps, num, niceStep, chart, build, draggable, loop};
+  EM.sceneKit = {TAU, C, clamp, stageHeight, fullscreenButton, fitCanvas, makeLabeler, arrow, vector, grid, charge, fieldGlyph, overlaps, num, niceStep, chart, build, draggable, loop};
   EM.scenes = EM.scenes || [];
 })();

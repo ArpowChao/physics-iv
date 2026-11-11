@@ -3,7 +3,7 @@
  */
 (() => {
   const E_CHARGE = 1.602e-19, U = 1.6605e-27, M_E = 9.109e-31;
-  const {TAU, C, clamp, fitCanvas, makeLabeler, arrow, vector, grid, fieldGlyph, num, chart, build, draggable, loop} = EM.sceneKit;
+  const {TAU, C, clamp, stageHeight, fitCanvas, makeLabeler, arrow, vector, grid, fieldGlyph, num, chart, build, draggable, loop} = EM.sceneKit;
 
   /* =====================================================================
    * 帶電粒子在均勻磁場中
@@ -64,7 +64,7 @@
       if (st.x < -1 || st.x > w + 1 || Math.abs(st.y) > H / 2 + 1) { paused = true; }
     }
     function draw() {
-      const w0 = cv.clientWidth || 800, h = clamp(Math.round(w0 * 0.55), 300, 520);
+      const h = stageHeight(cv, 0.55, 300, 520);
       const {ctx, w} = fitCanvas(cv, h);
       view = {s: w / 40, w, h};
       const s = view.s, cy = h / 2, P = (x, y) => [x * s, cy - y * s], L = makeLabeler(ctx, w, h), pr = params(), out = pr.Bz > 0;
@@ -152,7 +152,7 @@
       th = ((th % TAU) + TAU) % TAU;
     }
     function draw() {
-      const w0 = cv.clientWidth || 800, h = clamp(Math.round(w0 * 0.5), 300, 460);
+      const h = stageHeight(cv, 0.5, 300, 460);
       const {ctx, w} = fitCanvas(cv, h), L = makeLabeler(ctx, w, h);
       const cx = w * 0.42, cy = h * 0.53, R = Math.min(w * 0.2, h * 0.3), gap = R + 34;
       ctx.fillStyle = C.paper; ctx.fillRect(0, 0, w, h);

@@ -283,7 +283,7 @@
       L.label("0", cxm, cym - r - 5, {size: 11, color: C.muted});
     }
     function draw() {
-      const {ctx, w, h} = fitCanvas(canvas, clamp(Math.round((canvas.clientWidth || 600) * 0.5), 250, 420));
+      const {ctx, w, h} = fitCanvas(canvas, EM.sceneKit.stageHeight(canvas, 0.5, 250, 420));
       view.w = w; view.h = h; view.s = w / 0.34; view.ox = w * 0.5 + 0.015 * view.s; view.oy = h * 0.54;
       const L = makeLabeler(ctx, w, h);
       ctx.fillStyle = C.paper; ctx.fillRect(0, 0, w, h);
@@ -433,8 +433,10 @@
       </div></div>`;
     const root = main.querySelector("#scene-root");
     const dispose = scene.mount(root, {demo});
+    const bar = document.createElement("div"); bar.className = "scene-fullbar"; root.prepend(bar);
+    const unfull = EM.sceneKit.fullscreenButton(root, bar, {title: scene.title});
     if (new URLSearchParams(location.search).has("selftest")) window.__sceneRoot = root;
-    return dispose;
+    return () => { unfull(); dispose && dispose(); };
   }
 
   EM.scenes = (EM.scenes || []).concat(scenes.map(x => ({...x, chapter: 3})));

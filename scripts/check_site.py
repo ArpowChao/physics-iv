@@ -114,6 +114,12 @@ def run(base, out):
         page.locator("#kc-profile").select_option("V")
         assert page.locator("[data-kit-chart-wrap]").is_visible()
 
+        # 全螢幕：畫布撐滿、按鈕可切回
+        page.locator(".full-btn").click()
+        page.wait_for_function("document.querySelector('.scene-root.is-full canvas').getBoundingClientRect().height > innerHeight * 0.5")
+        page.locator(".full-btn").click()
+        page.wait_for_function("!document.querySelector('.is-full')")
+
         go("labs/deflect")
         page.wait_for_function("document.querySelector('[data-ro=y]').textContent.includes('cm')")
         y_electron = ro("y")

@@ -506,6 +506,7 @@
     updateCases();
     updateView();
     draw();
-    return ()=>{stop();if(frame)cancelAnimationFrame(frame);};
+    const shell=root.querySelector(".bench-shell"), unfull=EM.sceneKit.fullscreenButton(shell,root.querySelector(".bench-view-controls"),{title:bench.title+"・"+mode.title});
+    return ()=>{unfull();stop();if(frame)cancelAnimationFrame(frame);};
   };
 })();
