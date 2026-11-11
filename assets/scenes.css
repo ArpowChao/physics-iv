@@ -15,3 +15,4 @@
 .scene-readouts > div { padding: 8px 12px; border: 1px solid #cfdfe2; border-radius: 9px; background: #fff; }
 .scene-readouts dt { color: #5b747d; font-size: .82rem; }
 .scene-readouts dd { margin: 0; font: 700 1.08rem/1.5 var(--mono), var(--body); }
+.scene-index { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }

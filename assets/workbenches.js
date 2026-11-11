@@ -136,10 +136,16 @@
         const labels = tags.map(([[x, y], text, color]) => {
           if (x < 0 || y < 0 || x > W || y > H) return "";
           const w = Math.max(17, 10 + Array.from(text).length * 10), px = clamp(x + 6, 2, W - w - 2);
-          let py = clamp(y - 12, 12, H - 10);
-          for (let i = 0; i < 6 && used.some(([a, b, c]) => px < c + 2 && px + w > a - 2 && Math.abs(py - b) < 16); i++)py = clamp(py + (py > H - 26 ? -19 : 18), 12, H - 10);
-          used.push([px, py, px + w]);
-          return `<text x="${px + 5}" y="${py + 1}" class="bench-plot-label" font-size="15" fill="${color}">${txt(text)}</text>`;
+          // 依序試：右上、右下、左上、左下，再往外一圈；選第一個不壓到其他標籤的位置。
+          const hits = (qx, qy) => used.some(([a, b, c]) => qx < c + 3 && qx + w > a - 3 && Math.abs(qy - b) < 17);
+          let px0 = px, py = clamp(y - 12, 12, H - 10), placed = false;
+          for (const [dx, dy] of [[6, -12], [6, 12], [-w - 6, -12], [-w - 6, 12], [6, -30], [6, 30], [-w - 6, -30], [-w - 6, 30], [18, -48], [18, 48], [-w - 18, -48], [-w - 18, 48]]) {
+            const qx = clamp(x + dx, 2, W - w - 2), qy = clamp(y + dy, 12, H - 10);
+            if (!hits(qx, qy)) { px0 = qx; py = qy; placed = true; break; }
+          }
+          if (!placed) py = clamp(y - 12, 12, H - 10);
+          used.push([px0, py, px0 + w]);
+          return `<text x="${px0 + 5}" y="${py + 1}" class="bench-plot-label" font-size="15" fill="${color}">${txt(text)}</text>`;
         }).join("");
         const view = plane ? camera.plane.toUpperCase() + " 平面投影" : "3D 空間";
         return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${topBand ? -62 : 0} ${W} ${H + (topBand ? 62 : 0)}" data-theme="${theme}" data-projection="${camera.plane || "3d"}" data-right="${right}" data-up="${up}" data-scale="${scale}" role="img" aria-label="${txt(view + "・" + label)}">${out}${labels}${probes.join("")}${topBand}</svg>`;
@@ -185,6 +191,18 @@
   const probe = ctl("probe", "選取電流元位置", 0, 100, 1, 52, "%");
   const radius = ctl("radius", "線圈半徑 R", 4, 15, .5, 9, "cm");
   const pointArrow = (s, a, v, size, c, tag, w = 2.4, always = false) => { if (length(v) > 1e-9) s.arrow(a, sum(a, mul(unit(v), size)), c, w, tag, always); };
+  // 均勻磁場：用一整片淡色箭頭表示「場充滿這個區域」；2D 正視時自動變成 ⊙／⊗。
+  const fieldLattice = (s, b, { center = [0, 0, 0], span = 14, n = 3, size = 7, c = "#7fa3dc" } = {}) => {
+    if (length(b) < 1e-9) return;
+    const k = unit(b), ref = Math.abs(k[2]) < .9 ? [0, 0, 1] : [1, 0, 0];
+    const u = unit([k[1] * ref[2] - k[2] * ref[1], k[2] * ref[0] - k[0] * ref[2], k[0] * ref[1] - k[1] * ref[0]]);
+    const v = [k[1] * u[2] - k[2] * u[1], k[2] * u[0] - k[0] * u[2], k[0] * u[1] - k[1] * u[0]];
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const a = span * (2 * i / (n - 1) - 1), d = span * (2 * j / (n - 1) - 1);
+      const at = sum(center, sum(mul(u, a), sum(mul(v, d), mul(k, -size / 2))));
+      s.arrow(at, sum(at, mul(k, size)), c, 1.8);
+    }
+  };
   const sceneOut = (s, rows, legend, note, graph = "") => ({ diagram: s.finish(), rows, legend, note, graph });
   const biotModes = [
     {
@@ -789,7 +807,8 @@
         s.trail(past, "#83e8ef", .96, 2.35);
         s.orb(point, scale * .028, p.q > 0 ? "spark" : "particle", true);
         pointArrow(s, point, current.v, scale * .36, C.amber, "v"); pointArrow(s, point, current.f, scale * .31, C.violet, "F");
-        pointArrow(s, zero, m.b, scale * .52, C.blue, "B");
+        fieldLattice(s, m.b, { span: scale * .62, size: scale * .2 });
+        pointArrow(s, mul(unit(m.b), -scale * .62), m.b, scale * .3, C.blue, "B");
         return sceneOut(s, [item("t", "時間 t", fmt(t, 4) + " s"), item("force", "磁力量值 |F|", fmt(length(current.f) * 1e6, 3) + " μN"),
         item("speed", "速率 |v|", mag(current.v, "m/s")), item("radius", "軌道半徑", m.r < 1e-9 ? "—（直線）" : fmt(100 * m.r, 2) + " cm"),
         item("period", "週期／螺距", m.r < 1e-9 ? "—（直線）" : fmt(m.T, 4) + " s ／ " + fmt(100 * m.pitch, 1) + " cm"),
@@ -797,6 +816,7 @@
           "粒子質量固定 1.0 × 10⁻⁸ kg；畫面依軌跡自動調整比例，播放為慢速示意。理想均勻磁場，不計其他力。");
       }
       const s = scene(camera, 25, "三維導線、磁場、電流與磁力方向");
+      fieldLattice(s, m.b, { span: 15, size: 8 });
       pointArrow(s, [-13, -12, 0], m.b, 18, C.blue, "B");
       if (mode === "wire") {
         const h = mul(m.dl, 50), a = mul(h, -1);
@@ -907,7 +927,8 @@
         if (m.overlap > 0) s.polygon(rect(Math.max(left, -13), -half, Math.min(right, 13), half), C.teal, .35);
         corners = rect(left, -half, right, half);
         pointArrow(s, [m.x * 100, -half - 4, 0], [1, 0, 0], 8, C.amber, "v");
-        for (const x of [-10, 0, 10]) pointArrow(s, [x, 14, 0], [0, 0, 1], 8, C.blue, x === 0 ? "B" : "");
+        for (const x of [-9, 0, 9]) for (const y of [-16, -5.5, 5.5, 16]) s.arrow([x, y, -3], [x, y, 3], "#7fa3dc", 1.8);
+        pointArrow(s, [0, 16, 3], [0, 0, 1], 6, C.blue, "B");
       } else if (mode === "slide") {
         const span = (.035 + p.speed * p.duration) * 100, left = -span / 2, right = left + 100 * m.x, railEnd = span / 2 + 3;
         s.tube([[left, -half, 0], [railEnd, -half, 0]], .55, "steel"); s.tube([[left, half, 0], [railEnd, half, 0]], .55, "steel");
@@ -915,6 +936,7 @@
         if (camera.analysis) s.polygon(corners, C.teal, .26);
         pointArrow(s, [right, 0, 0], [1, 0, 0], 7, C.amber, "v");
         if (m.force) pointArrow(s, [right, -half, 0], [-1, 0, 0], 7, C.violet, "F");
+        fieldLattice(s, [0, 0, 1], { span: Math.max(half + 3, span / 2), n: 4, size: 6 });
         pointArrow(s, [left, half + 4, 0], [0, 0, 1], 9, C.blue, "B");
       } else if (mode === "magnet") {
         const z = m.x * 100, radius = 100 * magnet.radius, halfLength = 100 * magnet.halfLength, b = [0, 0, z + halfLength];
@@ -943,6 +965,7 @@
         }
         if (camera.analysis) s.polygon(corners, C.teal, .15);
         pointArrow(s, zero, [0, -Math.sin(m.angle), Math.cos(m.angle)], 10, C.teal, "n");
+        if (m.b) fieldLattice(s, [0, 0, m.b], { span: half + 3, n: 4, size: 3 + 5 * Math.min(1, Math.abs(m.b)) });
         if (m.b) pointArrow(s, [-12, 12, 0], [0, 0, m.b], 10, C.blue, "B");
       }
       if (corners) {
