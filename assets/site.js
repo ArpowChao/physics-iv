@@ -9,6 +9,9 @@
   const section = id => EM.sections.find(s => s.id === id);
   const chapter = id => EM.chapters.find(c => c.id === +id);
   const lab = id => EM.labs.find(c => c.id === id);
+  // 舊版「基礎示意」已由情境實驗與工作臺取代，保留網址導向
+  const legacyLabs = {coulomb:"coulomb-law",field:"efield",potential:"potential-map/plates",compass:"biot/compass",conductors:"biot/straight",
+    wireforce:"magnetic-force/wire",particle:"b-particle",flux:"induction/vary",lenz:"magnet-coil",generator:"induction/rotate",transformer:"induction/transformer",wave:"em-wave"};
   const benchFor = sid => EM.workbenches.find(b=>b.sections.includes(sid));
   const benchURL = (b,sid) => "#labs/"+b.id+({"1-1":"/field-lines","1-2":"/field-lines","2-2":"/straight","2-3":"/wire","3-2":"/magnet","3-3":"/rotate","3-4":"/transformer"}[sid]||"");
   const particleLinks = () => link("#labs/particle-apps/linear","粒子加速器")+link("#labs/particle-apps/aurora","極光與磁鏡");
@@ -120,7 +123,7 @@
       <section class="lesson-goal"><span class="lesson-kicker">這節要學會</span><p>${s.goal}</p></section>
       <div class="lesson-jumps">${chips([reading(s),curriculum(s)])}<a class="text-link" href="#course/${s.id}/1">本節觀念練習・${EM.conceptPractice[s.id].flat().length} 題 ↓</a></div>
       <section class="observe-card"><span class="lesson-kicker">01　先觀察</span><p>${s.lead}</p>
-        <div class="action-row">${EM.scenes.filter(x=>x.sections.includes(s.id)).map(x=>link("#labs/"+x.id,"動手拖曳："+x.title.split("：")[0]+" →","primary")).join("")}${benchFor(s.id)?link(benchURL(benchFor(s.id),s.id),"開啟 2D／3D 工作臺 →","primary"):""}${s.id==="2-4"?particleLinks():""}${link("#labs/"+s.lab,benchFor(s.id)?"先看基礎示意":"開啟實驗觀察 →")}</div></section>
+        <div class="action-row">${EM.scenes.filter(x=>x.sections.includes(s.id)).map(x=>link("#labs/"+x.id,x.title.split("：")[0]+" →","primary")).join("")}${benchFor(s.id)?link(benchURL(benchFor(s.id),s.id),"3D 工作臺 →",EM.scenes.some(x=>x.sections.includes(s.id))?"":"primary"):""}${s.id==="2-4"?particleLinks():""}</div></section>
       <h2 class="section-title">02　抓住核心關係</h2>
       <section class="formula-card"><div class="equation"><div class="formula">${s.formula}</div></div>
         <details class="formula-detail"><summary>公式怎麼用・條件與說明</summary><p>${s.condition}</p></details>
@@ -174,12 +177,16 @@
   }
 
   function labIndex() {
-    main.innerHTML=`<div class="shell page">${sectionHead("LAB / 互動實驗","電磁實驗室","每次先改一個變因，記下讀值，再回到公式解釋。")}
-      <section class="lab-group"><h2 class="section-title">情境實驗（可直接拖曳）</h2><div class="scene-index">${EM.scenes.map(x=>`<a class="lab-card" href="#labs/${x.id}"><span class="mono">情境實驗 ${x.sections.join("・")}</span><strong>${x.title}</strong><span>${x.description}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div></section>
-      <section class="lab-group"><h2 class="section-title">2D／3D 工作臺</h2>
-        <div class="bench-index">${EM.workbenches.map(b=>`<a class="lab-card" href="#labs/${b.id}"><span class="mono">進階實驗 ${b.sections.join("・")}</span><strong>${b.title}</strong><span>${b.description}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div>
-      </section>
-      ${EM.chapters.map(c=>`<section class="lab-group"><h2><span class="mono">${stamp(c.id)} /</span> ${c.name}</h2><div class="lab-grid">${byChapter(c.id).map(s=>`<a class="lab-card" href="${benchURL(benchFor(s.id),s.id)}"><span class="mono">LAB ${s.id}・2D／3D</span><strong>${s.name}</strong><span>${s.lead}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div></section>`).join("")}
+    // 每章一張清單：先放可拖曳的情境實驗，再放 3D 工作臺（工作臺列出各情境，可直接跳轉）。
+    const sceneCard=x=>`<a class="lab-card scene-card" href="#labs/${x.id}"><span class="mono">情境實驗・${x.sections.join("、")}</span><strong>${x.title}</strong><span>${x.description}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`;
+    const benchCard=b=>`<div class="lab-card bench-card"><a class="bench-card-title" href="#labs/${b.id}"><span class="mono">3D 工作臺・${b.sections.join("、")}</span><strong>${b.title}</strong></a>
+      <div class="bench-card-modes">${b.modes.map(m=>`<a href="#labs/${b.id}/${m.id}">${m.title}</a>`).join("")}</div></div>`;
+    main.innerHTML=`<div class="shell page">${sectionHead("LAB / 互動實驗","電磁實驗室","情境實驗可以直接拖曳、適合上課示範；3D 工作臺用來看空間中的場與向量。")}
+      ${EM.chapters.map(c=>{
+        const scenes=EM.scenes.filter(x=>x.sections[0][0]===String(c.id)), benches=EM.workbenches.filter(b=>b.sections[0][0]===String(c.id));
+        return `<section class="lab-group"><h2><span class="mono">${stamp(c.id)} /</span> ${c.name}</h2>
+          ${scenes.length?`<div class="scene-index">${scenes.map(sceneCard).join("")}</div>`:""}
+          ${benches.length?`<div class="bench-list">${benches.map(benchCard).join("")}</div>`:""}</section>`;}).join("")}
     </div>`;
   }
   function experiment(config) {
@@ -389,7 +396,7 @@
       const config=lab(id), bench=EM.workbenches.find(b=>b.id===id), scene=EM.scenes.find(x=>x.id===id);
       if(scene){cleanup=EM.mountScene(main,scene,topic);title=scene.title;}
       else if(bench){cleanup=EM.mountWorkbench(main,bench,topic);title=bench.title;}
-      else if(config){experiment(config);title=config.name;}
+      else if(config){location.replace("#labs/"+(legacyLabs[id]||""));return;}
       else{labIndex();title="電磁實驗室";}
     }else if(page==="concepts"){
       conceptIndex(id);title="觀念練習";

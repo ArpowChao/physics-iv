@@ -101,7 +101,7 @@
             <p class="bench-preview" hidden>動態預覽中。停止後會回到目前案例。</p>
           </section>
           ${electroViews?`<div class="bench-electro-tools">
-            <div class="action-row bench-electro-tabs" role="group" aria-label="靜電圖面">${[...electroViews,"profile"].map(id=>
+            <div class="action-row bench-electro-tabs" role="group" aria-label="靜電圖面">${[...electroViews,...(mode.noProfile?[]:["profile"])].map(id=>
               `<button type="button" class="button" data-electro-display="${id}" aria-pressed="false">${electroViewLabels[id]}</button>`).join("")}</div>
             <div class="action-row" role="group" aria-label="觀察範圍">
               <button type="button" class="button" data-electro-range="near" aria-pressed="true">近場</button>

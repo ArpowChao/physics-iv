@@ -585,14 +585,14 @@
         if (pole) {
           const [px, q] = pole;
           if (eSeries.at(-1)?.[1] !== null) eSeries.push([px, null]);
-          vSeries.push([x, Math.sign(q) * vCap]);
+          vSeries.push([x, null]);
           continue;
         }
         eSeries.push([x, null]);
         vSeries.push([x, null]);
       } else {
-        eSeries.push([x, m.e ? clamp(m.e[0], -limit, limit) : null]);
-        vSeries.push([x, clamp(m.v, -vCap, vCap)]);
+        eSeries.push([x, m.e && Math.abs(m.e[0]) <= limit ? m.e[0] : null]);
+        vSeries.push([x, Math.abs(m.v) <= vCap ? m.v : null]);
       }
     }
     const graph = chart(max, [
@@ -607,11 +607,11 @@
     camera: { yaw: 22, pitch: 52, zoom: 1 },
     modes: [
       {
-        id: "charges", title: "點電荷電位地形", camera: { yaw: 20, pitch: 37, zoom: 1 }, electroViews: ["surface", "contours", "lines"], controls: chargeControls,
+        id: "charges", title: "點電荷電位地形", camera: { yaw: 20, pitch: 37, zoom: 1 }, electroViews: ["surface", "contours"], noProfile: true, controls: chargeControls,
         task: "等量異號時，將 P 放到 x = 0 的平面。比較 V = 0 與 E 是否也為零，再把右側電荷改為同號。"
       },
       {
-        id: "field-lines", title: "電力線與庫侖力", electroViews: ["lines", "surface"], controls: [pick("vectors", "測點箭頭", [[0, "隱藏"], [1, "電場 E"], [2, "靜電力 F"]], 0), ...chargeControls.map(c => c.key === "z" ? { ...c, value: 0 } : c)],
+        id: "field-lines", title: "電力線與庫侖力", electroViews: ["lines"], controls: [pick("vectors", "測點箭頭", [[0, "隱藏"], [1, "電場 E"], [2, "靜電力 F"]], 0), ...chargeControls.map(c => c.key === "z" ? { ...c, value: 0 } : c)],
         task: "先將右側電荷設為 0，再加上同號或異號場源。只反轉檢驗電荷的符號，觀察電場與受力的差別。"
       },
       {
