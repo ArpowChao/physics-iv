@@ -57,7 +57,7 @@
     const hasPair=mode.id==="field-lines"||mode.id==="charges";
     const theme=mode.id==="aurora"?"space":beamModes.has(mode.id)?"beam":"lab";
     const saved=memory.get(key)||{p:{...defaults},camera:{...defaultCamera},state:{},
-      view:{dimension:lesson.plane?"2d":"3d",plane:lesson.plane||defaultPlanes[key]||"xy",grid:false,labels:false,
+      view:{dimension:lesson.plane?"2d":"3d",plane:lesson.plane||defaultPlanes[key]||"xy",grid:false,labels:bench.id!=="potential-map",
         electroDisplay:electroViews?.[0],electroRange:"near",electroDepth:"depth",electroDensity:EMPhysics.defaultLineDensity},
       activity:{free:false,caseIndex:0,prediction:null,explained:false,evidence:[null,null]}};
     memory.set(key,saved);
@@ -180,10 +180,10 @@
         </div>
        </div>
         <p class="small muted" id="bench-notice" role="status"></p>
-        <details class="bench-graphs" hidden><summary>查看同步圖表</summary>
+        <details class="bench-graphs" open hidden><summary>查看同步圖表</summary>
           ${playKey?'<p class="small muted bench-graph-help">自由探索時可點圖移動游標，也可用上方滑桿。</p>':""}<div id="bench-graph"></div></details>
       </div>
-      <div class="tool-shortcuts"><a href="#labs">← 其他實驗</a>${bench.sections.map(s=>`<a href="#course/${s}">回到 ${s} 導讀</a>`).join("")}</div>
+      <div class="tool-shortcuts"><a href="#labs">← 其他實驗</a>${(EM.scenes||[]).filter(x=>x.sections.some(sec=>bench.sections.includes(sec))).map(x=>`<a href="#labs/${x.id}">動手拖曳：${x.title.split("：")[0]}</a>`).join("")}${bench.sections.map(s=>`<a href="#course/${s}">回到 ${s} 導讀</a>`).join("")}</div>
     </div>`;
     const find=sel=>root.querySelector(sel), plot=find("#bench-plot"), graph=find("#bench-graph"), readouts=find("#bench-readouts"), play=find("#bench-play");
     const layout=find(".bench-layout"), evidenceData=find(".bench-evidence-data"), evidenceStatus=find(".bench-evidence-status");
@@ -320,7 +320,7 @@
       controls();
       const flat=view.dimension==="2d";
       const profile=view.electroDisplay==="profile";
-      const overlay={theme,grid:view.grid,labels:view.labels,analysis:view.labels,axes:view.grid||view.labels,
+      const overlay={theme,grid:view.grid,labels:view.labels,analysis:view.labels,axes:view.grid,
         comparisonExtent:activity.free?undefined:lesson.extent,
         electroDisplay:profile?electroViews[0]:view.electroDisplay,electroRange:electroRange(),electroDepth:view.electroDepth,
         electroLinkedOnly:view.electroLinkedOnly,electroDensity:view.electroDensity};

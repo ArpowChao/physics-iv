@@ -73,8 +73,7 @@ def run(base, out):
             assert page.locator(".bench-readouts dd").count() >= 3
             assert page.locator(".bench-inputs [data-param]").count() == len(controls)
             assert not page.locator(".bench-shell").evaluate("(e)=>/NaN|Infinity/.test(e.innerHTML)")
-            assert not page.get_by_role("checkbox", name="分析標註").is_checked()
-            assert page.locator("#bench-plot .bench-plot-label, #bench-plot [data-normal]").count() == 0
+            assert page.get_by_role("checkbox", name="分析標註").is_checked() == ("potential-map" not in route), route
             assert page.locator("#bench-plot circle").evaluate_all(
                 r"""(circles)=>circles.every(el=>{
                     const fill=el.getAttribute('fill'), gradient=/^url\(#([\w-]+)\)$/.exec(fill);

@@ -175,7 +175,7 @@
 
   function labIndex() {
     main.innerHTML=`<div class="shell page">${sectionHead("LAB / 互動實驗","電磁實驗室","每次先改一個變因，記下讀值，再回到公式解釋。")}
-      <section class="lab-group"><h2 class="section-title">情境實驗（可直接拖曳）</h2><div class="bench-index">${EM.scenes.map(x=>`<a class="lab-card" href="#labs/${x.id}"><span class="mono">情境實驗 ${x.sections.join("・")}</span><strong>${x.title}</strong><span>${x.description}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div></section>
+      <section class="lab-group"><h2 class="section-title">情境實驗（可直接拖曳）</h2><div class="scene-index">${EM.scenes.map(x=>`<a class="lab-card" href="#labs/${x.id}"><span class="mono">情境實驗 ${x.sections.join("・")}</span><strong>${x.title}</strong><span>${x.description}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div></section>
       <section class="lab-group"><h2 class="section-title">2D／3D 工作臺</h2>
         <div class="bench-index">${EM.workbenches.map(b=>`<a class="lab-card" href="#labs/${b.id}"><span class="mono">進階實驗 ${b.sections.join("・")}</span><strong>${b.title}</strong><span>${b.description}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`).join("")}</div>
       </section>
