@@ -9,11 +9,23 @@
   const section = id => EM.sections.find(s => s.id === id);
   const chapter = id => EM.chapters.find(c => c.id === +id);
   const lab = id => EM.labs.find(c => c.id === id);
+  // 所有模擬一份清單：情境實驗與 3D 空間圖不再分成兩套，依節次排列。
+  const modeSection = {"potential-map/charges":"1-3","potential-map/field-lines":"1-2","potential-map/plates":"1-3","potential-map/sphere":"1-3","potential-map/cavity":"1-3",
+    "biot/element":"2-2","biot/straight":"2-2","biot/compass":"2-1","biot/pair":"2-2","biot/loop":"2-2","biot/solenoid":"2-2",
+    "magnetic-force/particle":"2-4","magnetic-force/wire":"2-3","magnetic-force/parallel":"2-3",
+    "particle-apps/linear":"2-4","particle-apps/cyclotron":"2-4","particle-apps/aurora":"2-4",
+    "induction/slide":"3-1","induction/enter":"3-1","induction/vary":"3-1","induction/rotate":"3-3","induction/transformer":"3-4","em-wave/plane-wave":"3-5"};
+  const sims = () => [
+    ...EM.scenes.flatMap(x=>x.sections.map((sid,i)=>({href:"#labs/"+x.id,title:x.title,desc:x.description,section:sid,main:i===0,space:false}))),
+    ...EM.workbenches.flatMap(b=>b.modes.map(m=>({href:"#labs/"+b.id+"/"+m.id,title:m.title,desc:"",section:modeSection[b.id+"/"+m.id]||b.sections[0],main:true,space:true})))
+  ];
+  const simsFor = sid => sims().filter(x=>x.section===sid);
   // 舊版「基礎示意」已由情境實驗與工作臺取代，保留網址導向
   const legacyLabs = {coulomb:"coulomb-law",field:"efield",potential:"potential-map/plates",compass:"biot/compass",conductors:"biot/straight",
-    wireforce:"magnetic-force/wire",particle:"b-particle",flux:"induction/vary",lenz:"magnet-coil",generator:"induction/rotate",transformer:"induction/transformer",wave:"em-wave"};
+    wireforce:"magnetic-force/wire",particle:"b-particle",flux:"induction/vary",lenz:"magnet-coil",generator:"induction/rotate",transformer:"induction/transformer",wave:"em-wave",
+    "magnetic-force/motor":"dc-motor","induction/magnet":"magnet-coil"};
   const benchFor = sid => EM.workbenches.find(b=>b.sections.includes(sid));
-  const benchURL = (b,sid) => "#labs/"+b.id+({"1-1":"/field-lines","1-2":"/field-lines","2-2":"/straight","2-3":"/wire","3-2":"/magnet","3-3":"/rotate","3-4":"/transformer"}[sid]||"");
+  const benchURL = (b,sid) => "#labs/"+b.id+({"1-1":"/field-lines","1-2":"/field-lines","2-2":"/straight","2-3":"/wire","3-2":"/enter","3-3":"/rotate","3-4":"/transformer"}[sid]||"");
   const particleLinks = () => link("#labs/particle-apps/linear","粒子加速器")+link("#labs/particle-apps/aurora","極光與磁鏡");
   const byChapter = id => EM.sections.filter(s=>s.id.startsWith(id+"-"));
   const stamp = id => String(id).padStart(2,"0");
@@ -123,7 +135,7 @@
       <section class="lesson-goal"><span class="lesson-kicker">這節要學會</span><p>${s.goal}</p></section>
       <div class="lesson-jumps">${chips([reading(s),curriculum(s)])}<a class="text-link" href="#course/${s.id}/1">本節觀念練習・${EM.conceptPractice[s.id].flat().length} 題 ↓</a></div>
       <section class="observe-card"><span class="lesson-kicker">01　先觀察</span><p>${s.lead}</p>
-        <div class="action-row">${EM.scenes.filter(x=>x.sections.includes(s.id)).map(x=>link("#labs/"+x.id,x.title.split("：")[0]+" →","primary")).join("")}${benchFor(s.id)?link(benchURL(benchFor(s.id),s.id),"3D 工作臺 →",EM.scenes.some(x=>x.sections.includes(s.id))?"":"primary"):""}${s.id==="2-4"?particleLinks():""}</div></section>
+        <div class="action-row">${simsFor(s.id).map((x,i)=>link(x.href,x.title.split("：")[0]+(x.space?"（3D）":"")+" →",i===0?"primary":"")).join("")}</div></section>
       <h2 class="section-title">02　抓住核心關係</h2>
       <section class="formula-card"><div class="equation"><div class="formula">${s.formula}</div></div>
         <details class="formula-detail"><summary>公式怎麼用・條件與說明</summary><p>${s.condition}</p></details>
@@ -177,16 +189,12 @@
   }
 
   function labIndex() {
-    // 每章一張清單：先放可拖曳的情境實驗，再放 3D 工作臺（工作臺列出各情境，可直接跳轉）。
-    const sceneCard=x=>`<a class="lab-card scene-card" href="#labs/${x.id}"><span class="mono">情境實驗・${x.sections.join("、")}</span><strong>${x.title}</strong><span>${x.description}</span><span aria-hidden="true" class="lab-arr">↗</span></a>`;
-    const benchCard=b=>`<div class="lab-card bench-card"><a class="bench-card-title" href="#labs/${b.id}"><span class="mono">3D 工作臺・${b.sections.join("、")}</span><strong>${b.title}</strong></a>
-      <div class="bench-card-modes">${b.modes.map(m=>`<a href="#labs/${b.id}/${m.id}">${m.title}</a>`).join("")}</div></div>`;
-    main.innerHTML=`<div class="shell page">${sectionHead("LAB / 互動實驗","電磁實驗室","情境實驗可以直接拖曳、適合上課示範；3D 工作臺用來看空間中的場與向量。")}
-      ${EM.chapters.map(c=>{
-        const scenes=EM.scenes.filter(x=>x.sections[0][0]===String(c.id)), benches=EM.workbenches.filter(b=>b.sections[0][0]===String(c.id));
-        return `<section class="lab-group"><h2><span class="mono">${stamp(c.id)} /</span> ${c.name}</h2>
-          ${scenes.length?`<div class="scene-index">${scenes.map(sceneCard).join("")}</div>`:""}
-          ${benches.length?`<div class="bench-list">${benches.map(benchCard).join("")}</div>`:""}</section>`;}).join("")}
+    const card=x=>`<a class="lab-card sim-card" href="${x.href}"><span class="mono">${x.section}${x.space?"・3D 空間":""}</span><strong>${x.title}</strong>${x.desc?`<span>${x.desc}</span>`:""}<span aria-hidden="true" class="lab-arr">↗</span></a>`;
+    const all=sims().filter(x=>x.main);
+    main.innerHTML=`<div class="shell page">${sectionHead("LAB / 互動模擬","電磁實驗室","每個模擬都可以直接操作，按右上角「全螢幕」投影上課。標示「3D 空間」的可以拖曳旋轉視角。")}
+      ${EM.chapters.map(c=>`<section class="lab-group"><h2><span class="mono">${stamp(c.id)} /</span> ${c.name}</h2>
+        ${byChapter(c.id).map(sec=>{const list=all.filter(x=>x.section===sec.id);return list.length?`<h3 class="sim-section"><span class="mono">${sec.id}</span> ${sec.name}</h3><div class="sim-grid">${list.map(card).join("")}</div>`:"";}).join("")}
+      </section>`).join("")}
     </div>`;
   }
   function experiment(config) {
@@ -395,6 +403,7 @@
     }else if(page==="labs"){
       const config=lab(id), bench=EM.workbenches.find(b=>b.id===id), scene=EM.scenes.find(x=>x.id===id);
       if(scene){cleanup=EM.mountScene(main,scene,topic);title=scene.title;}
+      else if(bench&&legacyLabs[id+"/"+topic]){location.replace("#labs/"+legacyLabs[id+"/"+topic]);return;}
       else if(bench){cleanup=EM.mountWorkbench(main,bench,topic);title=bench.title;}
       else if(config){location.replace("#labs/"+(legacyLabs[id]||""));return;}
       else{labIndex();title="電磁實驗室";}
