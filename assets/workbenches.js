@@ -106,15 +106,15 @@
       out += `<path d="${loop(outer)}${loop(inner)}" fill="${fill}" opacity="${opacity}" fill-rule="evenodd"/>`;
     }
     function fieldKey(pair, zeroLabel) {
-      const distant = pair.net < 0 ? "由無窮遠進入" : "通往無窮遠";
+      const distant = pair.net < 0 ? "由無窮遠進入" : "通往無窮遠", section = camera.plane || camera.electroDepth === "section";
       const key = (x, label, c) => `<path d="M${x} -17h20" stroke="${c}" stroke-width="4" stroke-linecap="round"/><text x="${x + 29}" y="-11" fill="${C.ink}">${txt(label)}</text>`;
       topBand = `<g data-field-key="true" font-size="19" font-weight="650">
         <rect x="0" y="-62" width="${W}" height="62" fill="#fffdf8"/>
         <path d="M0 -.5h${W}" stroke="#cad7d5"/>
-        <text x="16" y="-38" fill="${C.ink}">${camera.plane || camera.electroDepth === "section" ? "切面示意　" : ""}Q₁ ${pair.counts[0]} 條　 Q₂ ${pair.counts[1]} 條</text>
+        <text x="16" y="-38" fill="${C.ink}">${section ? "切面示意（線數請看 3D）" : `Q₁ ${pair.counts[0]} 條　 Q₂ ${pair.counts[1]} 條`}</text>
         <text x="${W - 16}" y="-38" text-anchor="end" fill="${C.violet}">${txt(pair.x === null ? zeroLabel : "E = 0　" + zeroLabel)}</text>
-        ${key(18, "相連 " + lineCount(pair.joined), linkedLine)}
-        ${key(216, distant + " " + lineCount(pair.distant) + (camera.electroLinkedOnly ? "（暫藏）" : ""), distantLine)}
+        ${key(18, section ? "相連" : "相連 " + lineCount(pair.joined), linkedLine)}
+        ${key(216, distant + (section ? "" : " " + lineCount(pair.distant)) + (camera.electroLinkedOnly ? "（暫藏）" : ""), distantLine)}
       </g>`;
     }
     const g = extent * .85;
@@ -714,7 +714,9 @@
           const outgoing = density * (Math.max(0, p.q) + Math.max(0, p.q2));
           rows.push(item("joined-share", "正電荷出線的相連比例", outgoing ? fmt(100 * pair.joined / outgoing) + "%" : "—"));
         }
-        if (view === "lines") facts.push(["Q₁", fmt(p.q) + " nC · " + lineCount(pair.counts[0])], ["Q₂", fmt(p.q2) + " nC · " + lineCount(pair.counts[1])],
+        const sectionView = camera.plane || camera.electroDepth === "section";
+        if (view === "lines" && sectionView) facts.push(["Q₁", fmt(p.q) + " nC"], ["Q₂", fmt(p.q2) + " nC"]);
+        else if (view === "lines") facts.push(["Q₁", fmt(p.q) + " nC · " + lineCount(pair.counts[0])], ["Q₂", fmt(p.q2) + " nC · " + lineCount(pair.counts[1])],
           ["兩電荷相連", lineCount(pair.joined)], [pair.net < 0 ? "從無窮遠進入" : "通往無窮遠", lineCount(pair.distant)]);
         facts.push(["E = 0", zeroLabel + (nullAt ? " · V = " + fmt(nullAt.v, 2) + " V" : "")]);
         if (pair.potentialZeroes.length) facts.push(["軸上 V = 0", pair.potentialZeroes.map(x => fmt(x, 2)).join("、") + " cm"]);
@@ -739,7 +741,7 @@
         view === "lines" ? (camera.plane === "yz" && mode !== "sphere" ? "YZ 顯示 x = 0 切片的局部電場。線數以含 x 軸的參考切面為準。" :
           (pair && !camera.plane && camera.electroDepth !== "section" ?
             "3D：每 1 nC 在空間中畫 " + density + " 條線，均勻分布在電荷四周，所以線數與電量成正比。" + (camera.electroDepth === "front" ? "目前只顯示朝向觀察者的前側。" : "深色為前側，淡色為後側。") :
-            pair ? "這是通過兩電荷的切面示意：在切面上每 1 nC 畫 " + density + " 條線，方便比較；真正與電量成正比的是 3D 空間中的總線數。" :
+            pair ? "這是通過兩電荷的切面示意，只看電力線的形狀與方向；線數與電量成正比要在 3D 空間中計數。" :
               "參考切面每 1 nC 畫 " + density + " 條線。" + (camera.plane ? "" : camera.electroDepth === "front" ? "目前顯示朝向觀察者的前側。" :
                 camera.electroDepth === "section" ? "目前只顯示 XY 參考切面。" : "深色為前側，淡線標出後側與輔助切面。"))) :
           "曲線連接等電位位置，切面 " + slice + "。" + (flatValue === undefined ? "" : "這一整片同為 " + fmt(flatValue) + " V。");

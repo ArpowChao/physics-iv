@@ -114,7 +114,7 @@
             <label class="bench-depth" hidden><span>3D 景深</span><select>
               <option value="depth">前後分層</option><option value="front">只看前側</option><option value="section">單一參考切面</option>
             </select></label>
-            <button type="button" class="button bench-face-view" hidden>正視切面數線</button>
+            <button type="button" class="button bench-face-view" hidden>只看正視切面</button>
           </div>`:""}
           <p class="bench-scene-caption">${sceneCaptions[mode.id]}</p>
           <div class="bench-view-controls">
