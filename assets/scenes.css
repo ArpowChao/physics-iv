@@ -85,3 +85,9 @@ html.has-full { overflow: hidden; }
   .bench-shell.is-full #bench-plot svg { height: auto; min-height: 0; }
 }
 .bench-shell.is-full .bench-scene-caption, .bench-shell.is-full .bench-view-hint { display: none; }
+
+/* 實驗室首頁：依節次列出所有模擬 */
+.sim-section { margin: 18px 0 8px; font-size: 1.02rem; color: var(--ink); }
+.sim-section .mono { color: var(--accent); margin-right: 4px; }
+.sim-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.sim-card strong { font-size: 1rem; }

@@ -210,7 +210,21 @@
     const world = (px, py) => [(px - view.cx) / view.s, (py - view.cy) / view.s];
     const dirty = () => { cache = null; };
     function qmax() { return Math.max(0.5, ...charges.map(c => Math.abs(c.q))); }
-    function deltaV() { return niceStep(K * qmax() * 1e-7 / 4, 4); }
+    // 等電位線間隔：取畫面上（離電荷 1.2 cm 以外）|V| 的第 97 百分位 Vtop，約畫 7 條；只畫 |V| ≤ Vtop，
+    // 避免每個電荷周圍擠滿小圈。
+    function levels() {
+      if (!cache) return {dV: 1, n: 0};
+      if (cache.levels) return cache.levels;
+      const g = cache.grid, vals = [];
+      for (let j = 0; j < g.ny; j += 2) for (let i = 0; i < g.nx; i += 2) {
+        const [x, y] = world(i * g.step, j * g.step);
+        if (charges.every(c => Math.hypot(c.x - x, c.y - y) > 1.2)) vals.push(Math.abs(g.V[j * g.nx + i]));
+      }
+      vals.sort((a, b) => a - b);
+      const top = vals.length ? vals[Math.floor(vals.length * .97)] : 0, dV = top > 0 ? niceStep(top, 7) : 1;
+      return (cache.levels = {dV, n: Math.min(40, Math.floor(top / dV))});
+    }
+    function deltaV() { return levels().dV; }
 
     function computeGrid() {
       const step = 4, nx = Math.ceil(view.w / step) + 1, ny = Math.ceil(view.h / step) + 1, V = new Float32Array(nx * ny);
@@ -221,17 +235,21 @@
     }
     function fieldLines() {
       const out = [], pos = charges.filter(c => c.q > 0), neg = charges.filter(c => c.q < 0);
-      const xmax = view.w / 2 / view.s + 3, ymax = view.h / 2 / view.s + 3;
+      // 追蹤範圍遠大於畫面：跑出畫面的線會在畫面外繞回負電荷，畫面上就看得到它從另一側回來。
+      const far = 3000;
       const trace = (c, a, dir) => {
         let x = c.x + 0.55 * Math.cos(a), y = c.y + 0.55 * Math.sin(a);
         const path = [[c.x, c.y], [x, y]];
-        for (let k = 0; k < 2500; k++) {
+        for (let k = 0; k < 5000; k++) {
           const f = (px, py) => { const [ex, ey] = fieldAt(charges, px, py), n = Math.hypot(ex, ey) || 1; return [dir * ex / n, dir * ey / n]; };
-          const [ax, ay] = f(x, y), [bx, by] = f(x + ax * .09, y + ay * .09);
-          x += bx * .18; y += by * .18; path.push([x, y]);
+          let near = Infinity;
+          for (const o of charges) near = Math.min(near, Math.hypot(o.x - x, o.y - y));
+          const h = clamp(0.05 * near, 0.12, 40);          // 離電荷越遠步長越大
+          const [ax, ay] = f(x, y), [bx, by] = f(x + ax * h / 2, y + ay * h / 2);
+          x += bx * h; y += by * h; path.push([x, y]);
           const end = charges.find(o => o !== c && Math.hypot(o.x - x, o.y - y) < 0.45);
           if (end) { path.push([end.x, end.y]); return {path, end}; }
-          if (Math.abs(x) > xmax || Math.abs(y) > ymax) return {path, end: null};
+          if (Math.abs(x) > far || Math.abs(y) > far) return {path, end: null};
         }
         return {path, end: null};
       };
@@ -282,7 +300,7 @@
       ctx.beginPath(); ctx.moveTo(0, view.cy + .5); ctx.lineTo(w, view.cy + .5); ctx.moveTo(view.cx + .5, 0); ctx.lineTo(view.cx + .5, h); ctx.stroke();
       const dV = deltaV();
       if (ui.get("equi") && charges.length) {
-        const nMax = Math.min(30, Math.floor(K * qmax() * 1e-7 / 0.6 / dV)), both = charges.some(c => c.q > 0) && charges.some(c => c.q < 0);
+        const nMax = levels().n, both = charges.some(c => c.q > 0) && charges.some(c => c.q < 0);
         for (let n = -nMax; n <= nMax; n++) {
           if (n === 0 && !both) continue;
           ctx.strokeStyle = n > 0 ? "rgba(201,62,52,.75)" : n < 0 ? "rgba(42,98,184,.75)" : "rgba(80,90,95,.75)";

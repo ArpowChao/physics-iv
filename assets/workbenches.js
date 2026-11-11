@@ -192,13 +192,23 @@
   const radius = ctl("radius", "線圈半徑 R", 4, 15, .5, 9, "cm");
   const pointArrow = (s, a, v, size, c, tag, w = 2.4, always = false) => { if (length(v) > 1e-9) s.arrow(a, sum(a, mul(unit(v), size)), c, w, tag, always); };
   // 均勻磁場：用一整片淡色箭頭表示「場充滿這個區域」；2D 正視時自動變成 ⊙／⊗。
-  const fieldLattice = (s, b, { center = [0, 0, 0], span = 14, n = 3, size = 7, c = "#7fa3dc" } = {}) => {
+  // strength（單位 T）給定時，箭頭間距 = spacing1T／√B，單位面積的磁力線數與 B 成正比：磁場越強畫得越密。
+  // span 可以是一個數（正方形區域半寬）或 [半寬 u, 半寬 v]。
+  const fieldLattice = (s, b, { center = [0, 0, 0], span = 14, n = 3, size = 7, c = "#7fa3dc", strength, spacing1T } = {}) => {
     if (length(b) < 1e-9) return;
     const k = unit(b), ref = Math.abs(k[2]) < .9 ? [0, 0, 1] : [1, 0, 0];
     const u = unit([k[1] * ref[2] - k[2] * ref[1], k[2] * ref[0] - k[0] * ref[2], k[0] * ref[1] - k[1] * ref[0]]);
     const v = [k[1] * u[2] - k[2] * u[1], k[2] * u[0] - k[0] * u[2], k[0] * u[1] - k[1] * u[0]];
-    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-      const a = span * (2 * i / (n - 1) - 1), d = span * (2 * j / (n - 1) - 1);
+    const [su, sv] = Array.isArray(span) ? span : [span, span];
+    let us, vs;
+    if (strength !== undefined) {
+      const gap = (spacing1T || Math.max(su, sv) * .5) / Math.sqrt(Math.max(Math.abs(strength), 1e-3));
+      const axis = half => { const count = Math.max(1, Math.floor(2 * half / gap) + 1); return Array.from({ length: count }, (_, i) => (i - (count - 1) / 2) * gap); };
+      us = axis(su); vs = axis(sv);
+    } else {
+      us = Array.from({ length: n }, (_, i) => su * (2 * i / (n - 1) - 1)); vs = Array.from({ length: n }, (_, j) => sv * (2 * j / (n - 1) - 1));
+    }
+    for (const a of us) for (const d of vs) {
       const at = sum(center, sum(mul(u, a), sum(mul(v, d), mul(k, -size / 2))));
       s.arrow(at, sum(at, mul(k, size)), c, 1.8);
     }
@@ -797,10 +807,6 @@
       {
         id: "parallel", title: "雙平行導線：互吸／互斥", controls: [ctl("i1", "甲導線電流", -10, 10, .5, 6, "A"), ctl("i2", "乙導線電流", -10, 10, .5, 4, "A"), ctl("spacing", "兩線間距", 3, 25, 1, 10, "cm")],
         task: "只反轉乙的電流，再把間距加倍。先用甲線決定乙處的磁場，接著用乙線的電流判斷它的受力。"
-      },
-      {
-        id: "motor", title: "線圈力矩／直流換向器", controls: [B, ctl("i", "電流量值", 1, 8, .5, 4, "A"), ctl("size", "線圈長邊", 8, 28, 1, 18, "cm"), ctl("turns", "線圈匝數", 1, 15, 1, 5, "匝"), ctl("theta", "線圈轉角", 0, 360, 1, 55, "°"), pick("commutate", "換向器", [[1, "開啟：每半圈反向"], [0, "關閉：固定電流"]], 1)], animate: true,
-        task: "切換換向器，沿一整圈看 τₓ 正負；分辨單邊磁力不為零與整個線圈力矩為零是不同的事。"
       }
     ],
     draw(mode, p, camera) {
@@ -833,7 +839,7 @@
         s.trail(past, "#83e8ef", .96, 2.35);
         s.orb(point, scale * .028, p.q > 0 ? "spark" : "particle", true);
         pointArrow(s, point, current.v, scale * .36, C.amber, "v"); pointArrow(s, point, current.f, scale * .31, C.violet, "F");
-        fieldLattice(s, m.b, { span: scale * .62, size: scale * .2 });
+        fieldLattice(s, m.b, { span: scale * .62, size: scale * .2, strength: p.b, spacing1T: scale * .42 });
         pointArrow(s, mul(unit(m.b), -scale * .62), m.b, scale * .3, C.blue, "B");
         return sceneOut(s, [item("t", "時間 t", fmt(t, 4) + " s"), item("force", "磁力量值 |F|", fmt(length(current.f) * 1e6, 3) + " μN"),
         item("speed", "速率 |v|", mag(current.v, "m/s")), item("radius", "軌道半徑", m.r < 1e-9 ? "—（直線）" : fmt(100 * m.r, 2) + " cm"),
@@ -842,7 +848,7 @@
           "粒子質量固定 1.0 × 10⁻⁸ kg；畫面依軌跡自動調整比例，播放為慢速示意。理想均勻磁場，不計其他力。");
       }
       const s = scene(camera, 25, "三維導線、磁場、電流與磁力方向");
-      fieldLattice(s, m.b, { span: 15, size: 8 });
+      fieldLattice(s, m.b, { span: 15, size: 8, strength: p.b, spacing1T: 9 });
       pointArrow(s, [-13, -12, 0], m.b, 18, C.blue, "B");
       if (mode === "wire") {
         const h = mul(m.dl, 50), a = mul(h, -1);
@@ -920,10 +926,6 @@
         task: "從 0% 拖到 100%，找出進入、全在場內、離開三段。哪個階段磁通量不為零，感應電動勢卻為零？"
       },
       {
-        id: "magnet", title: "磁棒穿過線圈", controls: [ctl("b", "磁棒磁化強度 μ₀M", .2, 1.4, .05, .8, "T"), { ...loopSize, label: "圓線圈直徑" }, duration, turns, pick("pole", "前端磁極", [[1, "N 極"], [-1, "S 極"]], 1), ...circuit],
-        task: "在磁棒接近、通過線圈面、離開時暫停。比較磁通量峰值和 ε 的零點；把磁極反轉再做一次。"
-      },
-      {
         id: "rotate", title: "旋轉線圈／發電機", controls: [field, loopSize, duration, turns, ctl("cycles", "觀察時間內旋轉圈數", 1, 4, 1, 1, "圈"), ...circuit],
         task: "把線圈法線轉到與 B 平行、垂直，找出 Φ 與 ε 的峰值為何不同步。"
       },
@@ -953,7 +955,7 @@
         if (m.overlap > 0) s.polygon(rect(Math.max(left, -13), -half, Math.min(right, 13), half), C.teal, .35);
         corners = rect(left, -half, right, half);
         pointArrow(s, [m.x * 100, -half - 4, 0], [1, 0, 0], 8, C.amber, "v");
-        for (const x of [-9, 0, 9]) for (const y of [-16, -5.5, 5.5, 16]) s.arrow([x, y, -3], [x, y, 3], "#7fa3dc", 1.8);
+        fieldLattice(s, [0, 0, 1], { span: [12, 20], size: 6, strength: p.b, spacing1T: 4.5 });
         pointArrow(s, [0, 16, 3], [0, 0, 1], 6, C.blue, "B");
       } else if (mode === "slide") {
         const span = (.035 + p.speed * p.duration) * 100, left = -span / 2, right = left + 100 * m.x, railEnd = span / 2 + 3;
@@ -962,7 +964,7 @@
         if (camera.analysis) s.polygon(corners, C.teal, .26);
         pointArrow(s, [right, 0, 0], [1, 0, 0], 7, C.amber, "v");
         if (m.force) pointArrow(s, [right, -half, 0], [-1, 0, 0], 7, C.violet, "F");
-        fieldLattice(s, [0, 0, 1], { span: Math.max(half + 3, span / 2), n: 4, size: 6 });
+        fieldLattice(s, [0, 0, 1], { span: Math.max(half + 3, span / 2), size: 6, strength: p.b, spacing1T: 4.5 });
         pointArrow(s, [left, half + 4, 0], [0, 0, 1], 9, C.blue, "B");
       } else if (mode === "magnet") {
         const z = m.x * 100, radius = 100 * magnet.radius, halfLength = 100 * magnet.halfLength, b = [0, 0, z + halfLength];
@@ -991,7 +993,7 @@
         }
         if (camera.analysis) s.polygon(corners, C.teal, .15);
         pointArrow(s, zero, [0, -Math.sin(m.angle), Math.cos(m.angle)], 10, C.teal, "n");
-        if (m.b) fieldLattice(s, [0, 0, m.b], { span: half + 3, n: 4, size: 3 + 5 * Math.min(1, Math.abs(m.b)) });
+        if (m.b) fieldLattice(s, [0, 0, m.b], { span: half + 3, size: 6, strength: Math.abs(m.b), spacing1T: 4.5 });
         if (m.b) pointArrow(s, [-12, 12, 0], [0, 0, m.b], 10, C.blue, "B");
       }
       if (corners) {
