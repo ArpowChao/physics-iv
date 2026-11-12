@@ -86,7 +86,7 @@
               <button type="button" data-view="front">正視圖</button><button type="button" data-view="side">側視圖</button><button type="button" data-view="top">上視圖</button><button type="button" data-view="iso" aria-pressed="true">立體</button>
             </div>
             <div class="bs-seg bs-coord" role="group" aria-label="P 的調整方式">
-              <button type="button" data-coord="cyl" aria-pressed="true">用 d、ρ 調 P</button><button type="button" data-coord="sph" aria-pressed="false">用 r、θ 調 P</button>
+              <button type="button" data-coord="cyl" aria-pressed="true">平面內用 ρ 調 P</button><button type="button" data-coord="sph" aria-pressed="false">平面內用 r、θ 調 P</button>
             </div>
             ${sliders.map(([id, label, min, max, step, v, u]) =>
               `<label class="bs-slider" data-row="${id}"><span><span>${label}</span><output data-o="${id}"></output></span><input type="range" data-s="${id}" min="${min}" max="${max}" step="${step}" value="${v}" data-u="${u}"></label>`).join("")}
@@ -128,11 +128,22 @@
     const fromCyl = () => { st.r = Math.hypot(st.d, st.rho); st.t = Math.atan2(st.rho, st.d) * 180 / Math.PI; };
     const coordRows = () => {
       for (const b of $$("[data-coord]")) b.setAttribute("aria-pressed", String(b.dataset.coord === st.coord));
-      for (const id of ["d", "rho"]) $(`[data-row="${id}"]`).hidden = st.coord !== "cyl";
+      $('[data-row="rho"]').hidden = st.coord !== "cyl";
       for (const id of ["r", "t"]) $(`[data-row="${id}"]`).hidden = st.coord !== "sph";
     };
     for (const b of $$("[data-coord]")) b.addEventListener("click", () => { st.coord = b.dataset.coord; coordRows(); });
-    function syncInputs() { derive(); for (const inp of $$("[data-s]")) inp.value = st[inp.dataset.s]; }
+    // P 所在的截面只由 d 決定：在 r、θ 模式下，r 與 θ 只讓 P 在這個截面內移動，所以範圍跟著 d 改變
+    const RHO_MAX = 8, deg = Math.PI / 180;
+    function limits() {
+      const ad = Math.abs(st.d), rIn = $('[data-s="r"]'), tIn = $('[data-s="t"]');
+      rIn.min = Math.max(.6, Math.ceil((ad + .001) / .05) * .05).toFixed(2); rIn.max = Math.max(8, Math.hypot(ad, RHO_MAX)).toFixed(2);
+      const flat = ad < .01, edge = flat ? 90 : Math.atan(RHO_MAX / ad) / deg;
+      tIn.disabled = flat;
+      if (flat) { tIn.min = 89.5; tIn.max = 90.5; }
+      else if (st.d > 0) { tIn.min = 2; tIn.max = Math.min(88, Math.floor(edge * 2) / 2); }
+      else { tIn.min = Math.max(92, Math.ceil((180 - edge) * 2) / 2); tIn.max = 178; }
+    }
+    function syncInputs() { derive(); limits(); for (const inp of $$("[data-s]")) inp.value = st[inp.dataset.s]; }
     function readouts() {
       const ph = physics();
       $('[data-r="i"]').textContent = st.i.toFixed(1) + " A";
@@ -150,6 +161,12 @@
     for (const inp of $$("[data-s]")) inp.addEventListener("input", () => {
       const k = inp.dataset.s; st[k] = +inp.value;
       if (k === "d" || k === "rho") fromCyl();
+      else if (k === "r") { st.rho = Math.sqrt(Math.max(st.r * st.r - st.d * st.d, .0025)); fromCyl(); }
+      else if (k === "t") {
+        // 保持 d：ρ = d tan θ（d < 0 時 θ > 90°，tan θ < 0，ρ 仍為正）
+        if (Math.abs(st.d) >= .01) st.rho = clamp(st.d * Math.tan(st.t * deg), .05, RHO_MAX);
+        fromCyl();
+      }
       if (k === "s") relate(); else if (k !== "i") placeP();
       changed();
     });
@@ -356,6 +373,11 @@
           if (off.length() < need) camera.position.copy(controls.target).add(off.setLength(need));
         }
         lastE = E;
+        // P 移遠時（例如 ρ、r 變大）自動拉遠鏡頭並對準中點；使用者自己縮放後，只有 P 再變動才會調整
+        if (dirty && !tween && !dragging) {
+          const need = 1.9 * len(sub(st.P, E)) + 6, off = camera.position.clone().sub(controls.target);
+          if (off.length() < need) { const m = VA(mid), shift = m.clone().sub(controls.target).multiplyScalar(.5); controls.target.add(shift); camera.position.copy(controls.target).add(off.setLength(need)); }
+        }
         if (tween) {
           tween.t = Math.min(1, tween.t + .06); const e = 1 - (1 - tween.t) ** 3;
           camera.position.lerpVectors(tween.from, tween.to, e); controls.target.lerpVectors(tween.fromT, tween.look, e);
@@ -375,7 +397,7 @@
   EM.scenes.push({id: "biot-savart", title: "必歐－沙伐定律：電流元的磁場", sections: ["2-2"], chapter: 2,
     lead: "彎曲導線上任一小段電流元，在 P 點產生的磁場朝哪裡？大小和 r、θ 有什麼關係？",
     description: "彎曲導線、直導線或圓線圈上任選電流元，三維拖曳測點 P，看 r、θ、ΔB、Δℓ–r 平面與同心圓磁力線；可只顯示電流元。",
-    steps: ["按「只顯示電流元」，固定 d，把半徑 ρ 加倍：r、θ、|ΔB| 各怎麼變？", "把截面距離 d 調到 0（P 在電流元正側方，θ = 90°）、再調到很大：|ΔB| 怎麼變？切換「用 r、θ 調 P」驗證 |ΔB| ∝ sin θ / r²。", "改變方位角 φ：|ΔB| 會變嗎？ΔB 的方向和同心圓磁力線有什麼關係？", "P 不動，拖「電流元位置」換導線上不同的一段：哪一段的 ΔB 最大？方向都一樣嗎？", "切到「側視圖」沿著電流元看：用右手定則判斷磁力線繞的方向。"],
+    steps: ["按「只顯示電流元」，固定 d，把半徑 ρ 加倍：r、θ、|ΔB| 各怎麼變？", "截面固定，切到「平面內用 r、θ 調 P」：只改 θ（P 在同一截面內移動），|ΔB| 怎麼變？把 d 調到 0 時 θ 只能是 90°，為什麼？", "改變方位角 φ：|ΔB| 會變嗎？ΔB 的方向和同心圓磁力線有什麼關係？", "P 不動，拖「電流元位置」換導線上不同的一段：哪一段的 ΔB 最大？方向都一樣嗎？", "切到「側視圖」沿著電流元看：用右手定則判斷磁力線繞的方向。"],
     takeaway: "ΔB 的方向垂直於 Δℓ 與 r 所決定的平面，大小與 sin θ 成正比、與 r² 成反比；繞電流元的延長線一圈，ΔB 都沿同心圓切線。整條導線在 P 的磁場，就是每一段電流元的 ΔB 向量相加。",
     full: true, mount: mountBiot});
 })();

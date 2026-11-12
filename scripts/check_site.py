@@ -171,8 +171,19 @@ def run(base, out):
         page.locator('[data-s="d"]').fill("4")
         assert page.locator('[data-r="r"]').inner_text() == "5.00 m"
         assert bs() == "3.84 × 10⁻⁹ T", bs()
-        page.get_by_role("button", name="用 r、θ 調 P").click()
-        assert page.locator('[data-s="r"]').is_visible() and not page.locator('[data-s="d"]').is_visible()
+        # 平面內用 r、θ 調 P：改 θ 時截面距離 d 不變，ρ = d tan θ
+        page.get_by_role("button", name="平面內用 r、θ 調 P").click()
+        assert page.locator('[data-s="r"]').is_visible() and page.locator('[data-s="d"]').is_visible() and not page.locator('[data-s="rho"]').is_visible()
+        page.locator('[data-s="t"]').fill("45")
+        assert page.locator('[data-r="dd"]').inner_text() == "4.00 m", page.locator('[data-r="dd"]').inner_text()
+        assert page.locator('[data-r="rho"]').inner_text() == "4.00 m"
+        page.locator('[data-s="r"]').fill("5")
+        assert page.locator('[data-r="dd"]').inner_text() == "4.00 m" and page.locator('[data-r="rho"]').inner_text() == "3.00 m"
+        page.locator('[data-s="d"]').fill("-2")
+        page.locator('[data-s="t"]').fill("135")
+        assert page.locator('[data-r="dd"]').inner_text() == "-2.00 m" and page.locator('[data-r="rho"]').inner_text() == "2.00 m"
+        page.locator('[data-s="d"]').fill("0")
+        assert page.locator('[data-s="t"]').is_disabled() and page.locator('[data-r="t"]').inner_text() == "90.0°"
         page.get_by_role("button", name="只顯示電流元").click()
         assert page.get_by_role("button", name="只顯示電流元").get_attribute("aria-pressed") == "true"
         page.locator(".scene-fullbar button").click()
