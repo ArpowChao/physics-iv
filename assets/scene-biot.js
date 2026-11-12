@@ -77,7 +77,7 @@
           </dl>
         </section>
         <section class="bs-panel bs-ctrl">
-          <header><strong>控制</strong><button type="button" class="bs-fold" aria-label="收合">▾</button></header>
+          <header><strong>控制</strong><span data-sim-bar></span><button type="button" class="bs-fold" aria-label="收合">▾</button></header>
           <div class="bs-body">
             <div class="bs-seg bs-shapes" role="group" aria-label="導線形狀">
               ${Object.entries(SHAPES).map(([k, v]) => `<button type="button" data-shape="${k}" aria-pressed="${k === "curve"}">${v.name}</button>`).join("")}
@@ -168,15 +168,15 @@
       const T = window.THREE;
       $(".bs-loading").remove();
       const V = (x, y, z) => new T.Vector3(x, z, -y), VA = a => V(a[0], a[1], a[2]);   // 物理座標 → three.js
-      const renderer = new T.WebGLRenderer({antialias: true, alpha: false, preserveDrawingBuffer: true});
-      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0xf3f7f8);
+      const renderer = new T.WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true});
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
       host.append(renderer.domElement);
       const labels = new T.CSS2DRenderer(); labels.domElement.className = "bs-labels"; host.append(labels.domElement);
       const scene = new T.Scene(), camera = new T.PerspectiveCamera(38, 1, .1, 300);
       const controls = new T.OrbitControls(camera, labels.domElement);
       controls.enableDamping = true; controls.dampingFactor = .12; controls.minDistance = 4; controls.maxDistance = 45;
-      scene.add(new T.AmbientLight(0xffffff, .62));
-      const sun = new T.DirectionalLight(0xffffff, .7); sun.position.set(6, 10, 8); scene.add(sun);
+      scene.add(new T.HemisphereLight(0xffffff, 0xcfd8e3, .72));
+      const sun = new T.DirectionalLight(0xffffff, .62); sun.position.set(6, 10, 8); scene.add(sun);
 
       const mat = (color, extra = {}) => new T.MeshStandardMaterial({color, roughness: .45, metalness: .1, ...extra});
       const label = (text, cls = "") => { const d = document.createElement("div"); d.className = "bs-label " + cls; d.innerHTML = text; const o = new T.CSS2DObject(d); scene.add(o); return o; };
@@ -201,38 +201,40 @@
 
       // 導線（依形狀重建）、電流方向箭頭
       let wire = null;
-      const iArrow = arrowMesh(0x2a8c9c, .05), iLabel = label("I", "bs-teal");
+      const iArrow = arrowMesh(0x9a4a12, .05), iLabel = label("I", "bs-cur");
       // 電流元與它的延長線（同心圓的軸）
-      const element = new T.Mesh(new T.CylinderGeometry(.17, .17, 1, 28), mat(0xf2d33a, {emissive: 0x403300})); scene.add(element);
-      const dlArrow = arrowMesh(0x2e9b4f, .04), dlLabel = label(vec("Δℓ"), "bs-green");
-      const axis = new T.Line(new T.BufferGeometry(), new T.LineDashedMaterial({color: 0x8a9aa2, dashSize: .2, gapSize: .14})); scene.add(axis);
-      const eLabel = label("IΔℓ", "bs-ink");
+      const element = new T.Mesh(new T.CylinderGeometry(.17, .17, 1, 28), mat(0xf5a524, {emissive: 0x5a3200, roughness: .35})); scene.add(element);
+      // 電流元本身就是向量 IΔℓ：黃色線段＋箭頭
+      const elHead = new T.Mesh(new T.ConeGeometry(.3, .42, 28), mat(0xf5a524, {emissive: 0x5a3200, roughness: .35})); scene.add(elHead);
+      const axis = new T.Line(new T.BufferGeometry(), new T.LineDashedMaterial({color: 0x94a3b8, dashSize: .2, gapSize: .14})); scene.add(axis);
+      const eLabel = label("I" + vec("Δℓ"), "bs-cur bs-big");
       // 測點與向量
-      const P = new T.Mesh(new T.SphereGeometry(.15, 32, 20), mat(0x15191c, {roughness: .3})); scene.add(P);
+      const P = new T.Mesh(new T.SphereGeometry(.15, 32, 20), mat(0x0f172a, {roughness: .3})); scene.add(P);
       const pHit = new T.Mesh(new T.SphereGeometry(.42, 12, 8), new T.MeshBasicMaterial({visible: false})); scene.add(pHit);
-      const pLabel = label("P", "bs-ink bs-big");
-      const rArrow = arrowMesh(0x5b6770, .035), rLabel = label(vec("r"), "bs-ink");
-      const bArrow = arrowMesh(0xd9534a, .05), bLabel = label(vec("ΔB"), "bs-red");
-      const arc = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({color: 0xd9534a})); scene.add(arc);
-      const thLabel = label("θ", "bs-red");
-      const fan = new T.Mesh(new T.BufferGeometry(), new T.MeshBasicMaterial({color: 0xf4a261, transparent: true, opacity: .28, side: T.DoubleSide, depthWrite: false})); scene.add(fan);
-      const section = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({color: 0x5ab4d6, transparent: true, opacity: .16, side: T.DoubleSide, depthWrite: false})); scene.add(section);
-      const sectionEdge = new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(1, 1)), new T.LineBasicMaterial({color: 0x5ab4d6, transparent: true, opacity: .6})); scene.add(sectionEdge);
-      const circle = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({color: 0x2a62b8})); scene.add(circle);
+      const pLabel = label("P", "bs-geo bs-big");
+      const rArrow = arrowMesh(0x475569, .035), rLabel = label(vec("r"), "bs-geo");
+      const bArrow = arrowMesh(0x1d4ed8, .055), bLabel = label(vec("ΔB"), "bs-mag bs-big");
+      const arc = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({color: 0xdb2777})); scene.add(arc);
+      const thLabel = label("θ", "bs-ang");
+      const fan = new T.Mesh(new T.BufferGeometry(), new T.MeshBasicMaterial({color: 0xf5a524, transparent: true, opacity: .2, side: T.DoubleSide, depthWrite: false})); scene.add(fan);
+      const section = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({color: 0x3b82f6, transparent: true, opacity: .09, side: T.DoubleSide, depthWrite: false})); scene.add(section);
+      const sectionEdge = new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(1, 1)), new T.LineBasicMaterial({color: 0x3b82f6, transparent: true, opacity: .4})); scene.add(sectionEdge);
+      const circle = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({color: 0x60a5fa})); scene.add(circle);
       // d：電流元到截面（沿延長線）；ρ：截面圓心到 P
-      const dBar = new T.Mesh(new T.CylinderGeometry(.05, .05, 1, 12), mat(0x7b4fb8)); scene.add(dBar);
-      const cDot = new T.Mesh(new T.SphereGeometry(.09, 16, 10), mat(0x2a62b8)); scene.add(cDot);
-      const rhoLine = new T.Line(new T.BufferGeometry(), new T.LineDashedMaterial({color: 0x2a62b8, dashSize: .16, gapSize: .1})); scene.add(rhoLine);
-      const dLabel = label("r cos θ", "bs-purple bs-small"), rhoLabel = label("r sin θ", "bs-blue bs-small");
-      const circleHeads = Array.from({length: 4}, () => { const c = new T.Mesh(new T.ConeGeometry(.09, .28, 16), mat(0x2a62b8)); scene.add(c); return c; });
-      const dots = Array.from({length: 26}, () => { const d = new T.Mesh(new T.SphereGeometry(.15, 14, 10), new T.MeshBasicMaterial({color: 0xffe66b})); scene.add(d); return d; });
+      const dBar = new T.Mesh(new T.CylinderGeometry(.03, .03, 1, 10), mat(0xb45309)); scene.add(dBar);
+      const dCaps = [0, 1].map(() => { const m = new T.Mesh(new T.CylinderGeometry(.13, .13, .03, 20), mat(0xb45309)); scene.add(m); return m; });
+      const cDot = new T.Mesh(new T.SphereGeometry(.09, 16, 10), mat(0x3b82f6)); scene.add(cDot);
+      const rhoLine = new T.Line(new T.BufferGeometry(), new T.LineDashedMaterial({color: 0x3b82f6, dashSize: .16, gapSize: .1})); scene.add(rhoLine);
+      const dLabel = label("r cos θ", "bs-cur bs-small"), rhoLabel = label("r sin θ", "bs-field bs-small");
+      const circleHeads = Array.from({length: 4}, () => { const c = new T.Mesh(new T.ConeGeometry(.09, .28, 16), mat(0x3b82f6)); scene.add(c); return c; });
+      const dots = Array.from({length: 26}, () => { const d = new T.Mesh(new T.SphereGeometry(.15, 14, 10), new T.MeshBasicMaterial({color: 0xffd166})); scene.add(d); return d; });
 
       function rebuildWire() {
         const S = SHAPES[st.shape];
         if (wire) { scene.remove(wire); wire.geometry.dispose(); }
         const pts = Array.from({length: 241}, (_, k) => VA(S.pos(k / 240)));
         const curve = new T.CatmullRomCurve3(pts, S.closed);
-        wire = new T.Mesh(new T.TubeGeometry(curve, S.closed ? 200 : 320, .12, 18, S.closed), mat(0x2a8c9c)); scene.add(wire);
+        wire = new T.Mesh(new T.TubeGeometry(curve, S.closed ? 200 : 320, .12, 18, S.closed), mat(0xb8733a, {metalness: .35, roughness: .38})); scene.add(wire);
         const f = frameAt(st.shape, S.iAt), base = add(f.E, mul(f.e3, .55));
         setArrow(iArrow, VA(sub(base, mul(f.t, .7))), VA(add(base, mul(f.t, .7))), .3);
         iLabel.position.copy(VA(add(base, mul(f.e3, .4))));
@@ -242,11 +244,9 @@
         const S = SHAPES[st.shape], ph = physics(), Pv = VA(st.P), E = ph.E;
         show(wire, !st.only); show(iArrow, !st.only); show(iLabel, !st.only);
         // 電流元：沿切線、長 Δℓ
-        placeCyl(element, VA(sub(E, mul(ph.t, DL / 2))), VA(add(E, mul(ph.t, DL / 2))));
-        const off = mul(ph.e3, -.42);
-        setArrow(dlArrow, VA(add(add(E, off), mul(ph.t, -.55))), VA(add(add(E, off), mul(ph.t, .65))), .28);
-        dlLabel.position.copy(VA(add(add(E, mul(off, 2)), mul(ph.t, .1))));
-        eLabel.position.copy(VA(add(add(E, mul(ph.e3, .45)), mul(ph.t, -.55))));
+        placeCyl(element, VA(sub(E, mul(ph.t, DL / 2))), VA(add(E, mul(ph.t, DL / 2 - .05))));
+        elHead.position.copy(VA(add(E, mul(ph.t, DL / 2 + .16)))); elHead.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), VA(ph.t).normalize());
+        eLabel.position.copy(VA(add(add(E, mul(len(ph.rhoHat) > .5 ? ph.rhoHat : ph.e3, -.55)), mul(ph.t, -.9))));
         const ext = Math.max(ph.r, 2) + 1.4;
         axis.geometry.dispose(); axis.geometry = lineGeo([VA(sub(E, mul(ph.t, ext))), VA(add(E, mul(ph.t, ext)))]); axis.computeLineDistances();
         // P、r、ΔB
@@ -272,8 +272,10 @@
         for (const m of [section, sectionEdge]) { m.position.copy(VA(ph.C)); m.quaternion.copy(q); m.scale.set(size, size, 1); m.visible = st.section; }
         const w = cross(ph.t, rh), ring = a => add(ph.C, add(mul(rh, ph.rho * Math.cos(a)), mul(w, ph.rho * Math.sin(a))));
         const dOn = st.section && Math.abs(st.d) > .05;
-        if (dOn) placeCyl(dBar, VA(add(E, mul(rh, -.36))), VA(add(ph.C, mul(rh, -.36)))); show(dBar, dOn); show(dLabel, dOn);
-        dLabel.position.copy(VA(add(add(E, mul(sub(ph.C, E), .5)), mul(rh, -.7))));
+        const dA = add(E, mul(rh, -.7)), dB = add(ph.C, mul(rh, -.7));
+        if (dOn) { placeCyl(dBar, VA(dA), VA(dB)); dCaps.forEach((m, k) => { m.position.copy(VA(k ? dB : dA)); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), VA(ph.t).normalize()); }); }
+        show(dBar, dOn); show(dLabel, dOn); dCaps.forEach(m => show(m, dOn));
+        dLabel.position.copy(VA(add(add(E, mul(sub(ph.C, E), .5)), mul(rh, -1.02))));
         cDot.position.copy(VA(ph.C)); show(cDot, st.section);
         rhoLine.geometry.dispose(); rhoLine.geometry = lineGeo([VA(ph.C), Pv]); rhoLine.computeLineDistances(); show(rhoLine, st.section);
         rhoLabel.position.copy(VA(add(add(ph.C, mul(sub(st.P, ph.C), .5)), mul(ph.t, .35)))); show(rhoLabel, st.section);

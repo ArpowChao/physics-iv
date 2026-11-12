@@ -1,6 +1,6 @@
 /*
  * scene-kit.js —— 情境實驗共用工具
- * 版面：左邊畫布（可拖曳）＋圖表，右邊控制與讀值；手機上改為上下排列。
+ * 版面：一個外框裡放大畫布（可拖曳）＋可收合的控制、讀值、圖表面板（與必歐 3D 同一套樣式）；手機上改為上下排列。
  * 畫布文字一律走 label()：自動夾在畫布內，並記錄外框供 ?selftest=1 檢查重疊。
  */
 (() => {
@@ -163,26 +163,42 @@
         <input id="kc-${c.id}" type="range" min="${c.min}" max="${c.max}" step="${c.step}" value="${c.value}"></label>`;
       if (c.type === "select") return `<label class="kit-ctl" for="kc-${c.id}"><span>${c.label}</span><select id="kc-${c.id}">${c.options.map(([v, n]) =>
         `<option value="${v}" ${String(v) === String(c.value) ? "selected" : ""}>${n}</option>`).join("")}</select></label>`;
-      if (c.type === "check") return `<label class="kit-check"><input type="checkbox" id="kc-${c.id}" ${c.value ? "checked" : ""}> ${c.label}</label>`;
-      if (c.type === "buttons") return `<div class="kit-buttons">${c.items.map(b => `<button type="button" class="button ${b.primary ? "primary" : ""}" id="kc-${b.id}">${b.label}</button>`).join("")}</div>`;
+      if (c.type === "check") return `<label class="kit-check sim-toggle"><input type="checkbox" id="kc-${c.id}" ${c.value ? "checked" : ""}><span>${c.label}</span></label>`;
+      if (c.type === "buttons") return `<div class="kit-buttons">${c.items.map(b => `<button type="button" class="sim-btn ${b.primary ? "primary" : ""}" id="kc-${b.id}">${b.label}</button>`).join("")}</div>`;
       if (c.type === "heading") return `<h3 class="kit-heading">${c.label}</h3>`;
       return "";
     };
+    const fold = `<button type="button" class="sim-fold" aria-label="收合" aria-expanded="true">▾</button>`;
     root.innerHTML = `
-      ${tabs.length ? `<div class="scene-tabs" role="tablist" aria-label="情境">${tabs.map((t, i) =>
-        `<button type="button" role="tab" class="scene-tab" data-tab="${t.id}" aria-selected="${i === 0}">${t.name}</button>`).join("")}</div>` : ""}
-      <p class="scene-hint" data-kit-hint hidden></p>
-      <div class="kit-layout">
-        <div class="kit-main">
-          <div class="scene-stage" data-fill><canvas data-kit-canvas></canvas></div>
-          ${wantChart ? `<div class="scene-stage" data-kit-chart-wrap><canvas data-kit-chart></canvas></div>` : ""}
-          ${note ? `<p class="muted small kit-note">${note}</p>` : ""}
+      <div class="sim-frame kit-frame">
+        <div class="kit-top">
+          ${tabs.length ? `<div class="scene-tabs sim-seg" role="tablist" aria-label="情境">${tabs.map((t, i) =>
+            `<button type="button" role="tab" class="scene-tab" data-tab="${t.id}" aria-selected="${i === 0}">${t.name}</button>`).join("")}</div>` : `<span></span>`}
+          <div class="kit-top-tools"><button type="button" class="sim-btn kit-side-toggle" aria-pressed="false">⇥ 收起面板</button><span data-sim-bar></span></div>
         </div>
-        <aside class="kit-side">
-          <div class="kit-panel">${controls.map(ctlHTML).join("")}</div>
-          ${readouts.length ? `<dl class="kit-readouts">${readouts.map(([id, name]) => `<div data-ro-row="${id}"><dt data-rl="${id}">${name}</dt><dd data-ro="${id}">—</dd></div>`).join("")}</dl>` : ""}
-        </aside>
+        <p class="scene-hint" data-kit-hint hidden></p>
+        <div class="kit-layout">
+          <div class="kit-main">
+            <div class="scene-stage" data-fill><canvas data-kit-canvas></canvas></div>
+            ${wantChart ? `<section class="sim-panel kit-chart-panel"><header><strong>圖表</strong>${fold}</header><div class="sim-body scene-stage" data-kit-chart-wrap><canvas data-kit-chart></canvas></div></section>` : ""}
+          </div>
+          <aside class="kit-side">
+            <section class="sim-panel"><header><strong>控制</strong>${fold}</header><div class="sim-body kit-panel">${controls.map(ctlHTML).join("")}</div></section>
+            ${readouts.length ? `<section class="sim-panel"><header><strong>即時讀值</strong>${fold}</header><dl class="sim-body kit-readouts">${readouts.map(([id, name]) => `<div data-ro-row="${id}"><dt data-rl="${id}">${name}</dt><dd data-ro="${id}">—</dd></div>`).join("")}</dl></section>` : ""}
+          </aside>
+        </div>
+        ${note ? `<p class="muted small kit-note">${note}</p>` : ""}
       </div>`;
+    for (const b of root.querySelectorAll(".sim-fold")) b.addEventListener("click", () => {
+      const p = b.closest(".sim-panel"), on = p.classList.toggle("folded");
+      b.textContent = on ? "▸" : "▾"; b.setAttribute("aria-expanded", String(!on)); window.dispatchEvent(new Event("resize"));
+    });
+    const sideBtn = root.querySelector(".kit-side-toggle");
+    sideBtn.addEventListener("click", () => {
+      const on = root.querySelector(".kit-frame").classList.toggle("side-hidden");
+      sideBtn.setAttribute("aria-pressed", String(on)); sideBtn.textContent = on ? "⇤ 打開面板" : "⇥ 收起面板";
+      window.dispatchEvent(new Event("resize"));
+    });
     const flat = controls.flatMap(c => c.type === "buttons" ? c.items.map(b => ({...b, type: "button"})) : [c]);
     const spec = Object.fromEntries(flat.filter(c => c.id).map(c => [c.id, c]));
     const el = id => root.querySelector("#kc-" + id);
