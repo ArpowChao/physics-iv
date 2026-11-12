@@ -48,7 +48,7 @@
   };
 
   function mountBiot(root) {
-    const sliders = [["s", "電流元位置", 0, 100, .5, 50, "%"], ["r", "距離 r", .6, 8, .05, 3, "m"], ["t", "夾角 θ", 2, 178, .5, 45, "°"], ["p", "方位角 φ", 0, 360, 1, 90, "°"], ["i", "電流 I", .5, 5, .1, 2, "A"]];
+    const sliders = [["s", "電流元位置", 0, 100, .5, 50, "%"], ["d", "截面距離 d", -6, 6, .05, 2.12, "m"], ["rho", "半徑 ρ", .3, 6, .05, 2.12, "m"], ["r", "距離 r", .6, 8, .05, 3, "m"], ["t", "夾角 θ", 2, 178, .5, 45, "°"], ["p", "方位角 φ", 0, 360, 1, 90, "°"], ["i", "電流 I", .5, 5, .1, 2, "A"]];
     root.innerHTML = `
       <div class="bs-wrap">
         <div class="bs-canvas" aria-label="必歐－沙伐定律三維圖。拖曳黑點 P 移動測點，拖曳空白處旋轉視角。"></div>
@@ -67,6 +67,8 @@
           <dl class="bs-body">
             <div><dt>電流 I</dt><dd data-r="i"></dd></div>
             <div><dt>電流元長度 Δℓ</dt><dd>${DL.toFixed(2)} m</dd></div>
+            <div><dt>截面距離 d</dt><dd data-r="dd"></dd></div>
+            <div><dt>半徑 ρ</dt><dd data-r="rho"></dd></div>
             <div><dt>距離 r</dt><dd data-r="r"></dd></div>
             <div><dt>夾角 θ</dt><dd data-r="t"></dd></div>
             <div><dt>sin θ</dt><dd data-r="s"></dd></div>
@@ -83,8 +85,11 @@
             <div class="bs-seg bs-views" role="group" aria-label="視角">
               <button type="button" data-view="front">正視圖</button><button type="button" data-view="side">側視圖</button><button type="button" data-view="top">上視圖</button><button type="button" data-view="iso" aria-pressed="true">立體</button>
             </div>
+            <div class="bs-seg bs-coord" role="group" aria-label="P 的調整方式">
+              <button type="button" data-coord="cyl" aria-pressed="true">用 d、ρ 調 P</button><button type="button" data-coord="sph" aria-pressed="false">用 r、θ 調 P</button>
+            </div>
             ${sliders.map(([id, label, min, max, step, v, u]) =>
-              `<label class="bs-slider"><span><span>${label}</span><output data-o="${id}"></output></span><input type="range" data-s="${id}" min="${min}" max="${max}" step="${step}" value="${v}" data-u="${u}"></label>`).join("")}
+              `<label class="bs-slider" data-row="${id}"><span><span>${label}</span><output data-o="${id}"></output></span><input type="range" data-s="${id}" min="${min}" max="${max}" step="${step}" value="${v}" data-u="${u}"></label>`).join("")}
             <div class="bs-toggles">
               <button type="button" data-t="only" aria-pressed="false">只顯示電流元</button>
               <button type="button" data-t="flow" aria-pressed="false">動態電流</button>
@@ -97,7 +102,7 @@
       </div>`;
     const $ = s => root.querySelector(s), $$ = s => [...root.querySelectorAll(s)];
     const host = $(".bs-canvas");
-    const st = {shape: "curve", s: 50, r: 3, t: 45, p: 90, i: 2, only: false, section: true, plane: true, circle: true, flow: false, P: [0, 0, 0]};
+    const st = {shape: "curve", coord: "cyl", s: 50, r: 3, t: 45, d: 0, rho: 0, p: 90, i: 2, only: false, section: true, plane: true, circle: true, flow: false, P: [0, 0, 0]};
     for (const b of $$(".bs-fold")) b.addEventListener("click", () => { const p = b.closest(".bs-panel"); p.classList.toggle("folded"); b.textContent = p.classList.contains("folded") ? "▸" : "▾"; });
 
     const frame = () => frameAt(st.shape, SHAPES[st.shape].pick(st.s / 100));
@@ -118,21 +123,33 @@
       const along = dot(rv, f.t), C = add(f.E, mul(f.t, along)), rhoV = sub(st.P, C);
       return {...f, rv, r, s, B, dir: unit(c), C, rho: len(rhoV), rhoHat: unit(rhoV)};
     };
-    function syncInputs() { for (const inp of $$("[data-s]")) inp.value = st[inp.dataset.s]; }
+    // 圓柱座標：d = r cos θ（P 所在截面離電流元的距離，沿 Δℓ 方向為正）、ρ = r sin θ（P 到電流元延長線的半徑）
+    const derive = () => { const t = st.t * Math.PI / 180; st.d = st.r * Math.cos(t); st.rho = st.r * Math.sin(t); };
+    const fromCyl = () => { st.r = Math.hypot(st.d, st.rho); st.t = Math.atan2(st.rho, st.d) * 180 / Math.PI; };
+    const coordRows = () => {
+      for (const b of $$("[data-coord]")) b.setAttribute("aria-pressed", String(b.dataset.coord === st.coord));
+      for (const id of ["d", "rho"]) $(`[data-row="${id}"]`).hidden = st.coord !== "cyl";
+      for (const id of ["r", "t"]) $(`[data-row="${id}"]`).hidden = st.coord !== "sph";
+    };
+    for (const b of $$("[data-coord]")) b.addEventListener("click", () => { st.coord = b.dataset.coord; coordRows(); });
+    function syncInputs() { derive(); for (const inp of $$("[data-s]")) inp.value = st[inp.dataset.s]; }
     function readouts() {
       const ph = physics();
       $('[data-r="i"]').textContent = st.i.toFixed(1) + " A";
       $('[data-r="r"]').textContent = ph.r.toFixed(2) + " m";
+      $('[data-r="dd"]').textContent = st.d.toFixed(2) + " m";
+      $('[data-r="rho"]').textContent = st.rho.toFixed(2) + " m";
       $('[data-r="t"]').textContent = st.t.toFixed(1) + "°";
       $('[data-r="s"]').textContent = ph.s.toFixed(3);
       $('[data-r="b"]').textContent = num(ph.B) + " T";
       $('[data-r="d"]').textContent = "⊥ Δℓ 與 r，沿同心圓切線";
-      const fmt = {s: v => v.toFixed(1), r: v => v.toFixed(2), t: v => v.toFixed(1), p: v => v.toFixed(0), i: v => v.toFixed(1)};
+      const fmt = {s: v => v.toFixed(1), d: v => v.toFixed(2), rho: v => v.toFixed(2), r: v => v.toFixed(2), t: v => v.toFixed(1), p: v => v.toFixed(0), i: v => v.toFixed(1)};
       for (const [id] of sliders) $(`[data-o="${id}"]`).textContent = fmt[id](st[id]) + " " + $(`[data-s="${id}"]`).dataset.u;
     }
     const changed = () => { syncInputs(); readouts(); dirty = true; };
     for (const inp of $$("[data-s]")) inp.addEventListener("input", () => {
       const k = inp.dataset.s; st[k] = +inp.value;
+      if (k === "d" || k === "rho") fromCyl();
       if (k === "s") relate(); else if (k !== "i") placeP();
       changed();
     });
@@ -143,7 +160,7 @@
       placeP(); changed(); shapeDirty = true;
     };
     for (const b of $$("[data-shape]")) b.addEventListener("click", () => setShape(b.dataset.shape));
-    placeP(); readouts();
+    placeP(); derive(); coordRows(); syncInputs(); readouts();
 
     let disposed = false, dirty = true, shapeDirty = true, raf = 0, cleanup = () => {};
     const api = {
@@ -151,7 +168,9 @@
       set(o) {
         if (o.shape && o.shape !== st.shape) setShape(o.shape);
         const {shape, ...rest} = o; Object.assign(st, rest);
-        if ("s" in rest && !("r" in rest || "t" in rest || "p" in rest)) relate(); else if ("r" in rest || "t" in rest || "p" in rest) placeP();
+        const moveP = ["r", "t", "p", "d", "rho"].some(k => k in rest);
+        if ("d" in rest || "rho" in rest) fromCyl();
+        if ("s" in rest && !moveP) relate(); else if (moveP) placeP();
         changed();
       },
       boxes: () => []
@@ -215,6 +234,11 @@
       const section = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({color: 0x5ab4d6, transparent: true, opacity: .16, side: T.DoubleSide, depthWrite: false})); scene.add(section);
       const sectionEdge = new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(1, 1)), new T.LineBasicMaterial({color: 0x5ab4d6, transparent: true, opacity: .6})); scene.add(sectionEdge);
       const circle = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({color: 0x2a62b8})); scene.add(circle);
+      // d：電流元到截面（沿延長線）；ρ：截面圓心到 P
+      const dBar = new T.Mesh(new T.CylinderGeometry(.05, .05, 1, 12), mat(0x7b4fb8)); scene.add(dBar);
+      const cDot = new T.Mesh(new T.SphereGeometry(.09, 16, 10), mat(0x2a62b8)); scene.add(cDot);
+      const rhoLine = new T.Line(new T.BufferGeometry(), new T.LineDashedMaterial({color: 0x2a62b8, dashSize: .16, gapSize: .1})); scene.add(rhoLine);
+      const dLabel = label("d", "bs-purple"), rhoLabel = label("ρ", "bs-blue");
       const circleHeads = Array.from({length: 4}, () => { const c = new T.Mesh(new T.ConeGeometry(.09, .28, 16), mat(0x2a62b8)); scene.add(c); return c; });
       const dots = Array.from({length: 26}, () => { const d = new T.Mesh(new T.SphereGeometry(.15, 14, 10), new T.MeshBasicMaterial({color: 0xffe66b})); scene.add(d); return d; });
 
@@ -262,6 +286,12 @@
         const size = 2 * (ph.rho + 1.3), q = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 0, 1), VA(ph.t).normalize());
         for (const m of [section, sectionEdge]) { m.position.copy(VA(ph.C)); m.quaternion.copy(q); m.scale.set(size, size, 1); m.visible = st.section; }
         const w = cross(ph.t, rh), ring = a => add(ph.C, add(mul(rh, ph.rho * Math.cos(a)), mul(w, ph.rho * Math.sin(a))));
+        const dOn = st.section && Math.abs(st.d) > .05;
+        if (dOn) placeCyl(dBar, VA(add(E, mul(rh, -.36))), VA(add(ph.C, mul(rh, -.36)))); show(dBar, dOn); show(dLabel, dOn);
+        dLabel.position.copy(VA(add(add(E, mul(sub(ph.C, E), .5)), mul(rh, -.7))));
+        cDot.position.copy(VA(ph.C)); show(cDot, st.section);
+        rhoLine.geometry.dispose(); rhoLine.geometry = lineGeo([VA(ph.C), Pv]); rhoLine.computeLineDistances(); show(rhoLine, st.section);
+        rhoLabel.position.copy(VA(add(add(ph.C, mul(sub(st.P, ph.C), .5)), mul(ph.t, .35)))); show(rhoLabel, st.section);
         circle.geometry.dispose(); circle.geometry = lineGeo(Array.from({length: 97}, (_, k) => VA(ring(k / 96 * Math.PI * 2)))); circle.visible = st.circle;
         circleHeads.forEach((c, k) => {
           const a = Math.PI / 4 + k * Math.PI / 2, tan = add(mul(w, Math.cos(a)), mul(rh, -Math.sin(a)));
@@ -345,7 +375,7 @@
   EM.scenes.push({id: "biot-savart", title: "必歐－沙伐定律：電流元的磁場", sections: ["2-2"], chapter: 2,
     lead: "彎曲導線上任一小段電流元，在 P 點產生的磁場朝哪裡？大小和 r、θ 有什麼關係？",
     description: "彎曲導線、直導線或圓線圈上任選電流元，三維拖曳測點 P，看 r、θ、ΔB、Δℓ–r 平面與同心圓磁力線；可只顯示電流元。",
-    steps: ["按「只顯示電流元」，把 r 從 1.5 m 拉到 3 m，|ΔB| 變成幾分之幾？", "把 θ 拉到 90°、再拉到接近 0° 或 180°，|ΔB| 怎麼變？", "改變方位角 φ：|ΔB| 會變嗎？ΔB 的方向和同心圓磁力線有什麼關係？", "P 不動，拖「電流元位置」換導線上不同的一段：哪一段的 ΔB 最大？方向都一樣嗎？", "切到「側視圖」沿著電流元看：用右手定則判斷磁力線繞的方向。"],
+    steps: ["按「只顯示電流元」，固定 d，把半徑 ρ 加倍：r、θ、|ΔB| 各怎麼變？", "把截面距離 d 調到 0（P 在電流元正側方，θ = 90°）、再調到很大：|ΔB| 怎麼變？切換「用 r、θ 調 P」驗證 |ΔB| ∝ sin θ / r²。", "改變方位角 φ：|ΔB| 會變嗎？ΔB 的方向和同心圓磁力線有什麼關係？", "P 不動，拖「電流元位置」換導線上不同的一段：哪一段的 ΔB 最大？方向都一樣嗎？", "切到「側視圖」沿著電流元看：用右手定則判斷磁力線繞的方向。"],
     takeaway: "ΔB 的方向垂直於 Δℓ 與 r 所決定的平面，大小與 sin θ 成正比、與 r² 成反比；繞電流元的延長線一圈，ΔB 都沿同心圓切線。整條導線在 P 的磁場，就是每一段電流元的 ΔB 向量相加。",
     full: true, mount: mountBiot});
 })();
