@@ -5,7 +5,7 @@
  * 以電流元為原點的局部座標 e₁ = t̂、e₃ = 上方（與 t̂ 正交化）、e₂ = e₃ × e₁：
  *   P = E + r (cos θ e₁ + sin θ cos φ e₂ + sin θ sin φ e₃)
  * ΔB = μ₀/4π · I Δℓ t̂ × r̂ / r²，方向 = −sin φ e₂ + cos φ e₃，大小 μ₀/4π · I Δℓ sin θ / r²。
- * 換電流元位置時 P 固定在空間中（r、θ、φ 重新計算），方便比較導線上不同電流元的貢獻。
+ * 換電流元位置時 r cos θ、r sin θ、φ 都不變：P 跟著電流元一起移動（相對位置固定），只有電流元在導線上的位置改變。
  */
 (() => {
   const MU4PI = 1e-7, DL = 0.8;
@@ -59,7 +59,7 @@
             <p>載流導線上的一小段電流元 IΔℓ，在空間中 P 點產生的微小磁場：</p>
             <div class="bs-eq bs-eq-vec">${math.vec}</div>
             <div class="bs-eq bs-eq-mag">${math.mag}</div>
-            <p class="bs-tip">🖐 用 <b>r cos θ</b>（截面離電流元多遠）與 <b>r sin θ</b>（截面內的半徑）放置 P，也可直接拖曳<b>黑點 P</b>；用「電流元位置」在導線上換一段電流元（P 不動）。拖曳空白處旋轉視角、滾輪縮放。</p>
+            <p class="bs-tip">🖐 用 <b>r cos θ</b>（截面離電流元多遠）與 <b>r sin θ</b>（截面內的半徑）放置 P，也可直接拖曳<b>黑點 P</b>；用「電流元位置」在導線上換一段電流元（P 跟著走，r cos θ、r sin θ 不變）。拖曳空白處旋轉視角、滾輪縮放。</p>
           </div>
         </section>
         <section class="bs-panel bs-read">
@@ -108,12 +108,6 @@
       const f = frame(), t = st.t * Math.PI / 180, p = st.p * Math.PI / 180;
       st.P = add(f.E, mul(add(mul(f.t, Math.cos(t)), add(mul(f.e2, Math.sin(t) * Math.cos(p)), mul(f.e3, Math.sin(t) * Math.sin(p)))), st.r));
     };
-    // P 固定，重新算出相對目前電流元的 r、θ、φ
-    const relate = () => {
-      const f = frame(), rv = sub(st.P, f.E), r = len(rv);
-      st.r = r; st.t = Math.acos(clamp(dot(rv, f.t) / r, -1, 1)) * 180 / Math.PI;
-      let p = Math.atan2(dot(rv, f.e3), dot(rv, f.e2)) * 180 / Math.PI; if (p < 0) p += 360; st.p = p;
-    };
     const physics = () => {
       const f = frame(), rv = sub(st.P, f.E), r = len(rv), c = cross(f.t, rv);
       const s = len(c) / r, B = MU4PI * st.i * DL * s / (r * r);
@@ -141,7 +135,7 @@
     for (const inp of $$("[data-s]")) inp.addEventListener("input", () => {
       const k = inp.dataset.s; st[k] = +inp.value;
       if (k === "d" || k === "rho") fromCyl();
-      if (k === "s") relate(); else if (k !== "i") placeP();
+      if (k !== "i") placeP();
       changed();
     });
     for (const b of $$("[data-t]")) b.addEventListener("click", () => { st[b.dataset.t] = !st[b.dataset.t]; b.setAttribute("aria-pressed", String(st[b.dataset.t])); dirty = true; });
@@ -161,7 +155,7 @@
         const {shape, ...rest} = o; Object.assign(st, rest);
         const moveP = ["r", "t", "p", "d", "rho"].some(k => k in rest);
         if ("d" in rest || "rho" in rest) fromCyl();
-        if ("s" in rest && !moveP) relate(); else if (moveP) placeP();
+        if (moveP || "s" in rest) placeP();
         changed();
       },
       boxes: () => []
@@ -339,10 +333,10 @@
       const tick = time => {
         if (disposed) return;
         raf = requestAnimationFrame(tick);
-        // 換電流元位置時，鏡頭對準電流元與 P 的中點，距離不夠就拉遠，讓兩者都在畫面裡
+        // 換電流元位置時，鏡頭跟著電流元平移（P 也跟著電流元一起動）
         const E = frame().E, mid = mul(add(E, st.P), .5);
         if (lastE && !tween && !dragging && (E[0] !== lastE[0] || E[1] !== lastE[1] || E[2] !== lastE[2])) {
-          const d = VA(sub(mid, mul(add(lastE, st.P), .5))); camera.position.add(d); controls.target.add(d);
+          const d = VA(sub(E, lastE)); camera.position.add(d); controls.target.add(d);
           const need = 1.9 * len(sub(st.P, E)) + 6, off = camera.position.clone().sub(controls.target);
           if (off.length() < need) camera.position.copy(controls.target).add(off.setLength(need));
         }
@@ -371,7 +365,7 @@
   EM.scenes.push({id: "biot-savart", title: "必歐－沙伐定律：電流元的磁場", sections: ["2-2"], chapter: 2,
     lead: "彎曲導線上任一小段電流元，在 P 點產生的磁場朝哪裡？大小和 r、θ 有什麼關係？",
     description: "彎曲導線、直導線或圓線圈上任選電流元，三維拖曳測點 P，看 r、θ、ΔB、Δℓ–r 平面與同心圓磁力線；可只顯示電流元。",
-    steps: ["按「只顯示電流元」，固定 r cos θ，把 r sin θ 加倍：r、θ、|ΔB| 各怎麼變？", "固定 r sin θ，把 r cos θ 從 0 調大（P 的截面往前移）：θ 怎麼變？|ΔB| 為什麼變小？r cos θ = 0 時 θ 是幾度？", "改變方位角 φ：|ΔB| 會變嗎？ΔB 的方向和同心圓磁力線有什麼關係？", "P 不動，拖「電流元位置」換導線上不同的一段：哪一段的 ΔB 最大？方向都一樣嗎？", "切到「側視圖」沿著電流元看：用右手定則判斷磁力線繞的方向。"],
+    steps: ["按「只顯示電流元」，固定 r cos θ，把 r sin θ 加倍：r、θ、|ΔB| 各怎麼變？", "固定 r sin θ，把 r cos θ 從 0 調大（P 的截面往前移）：θ 怎麼變？|ΔB| 為什麼變小？r cos θ = 0 時 θ 是幾度？", "改變方位角 φ：|ΔB| 會變嗎？ΔB 的方向和同心圓磁力線有什麼關係？", "拖「電流元位置」換到導線上不同的一段（r cos θ、r sin θ 不變）：|ΔB| 會變嗎？ΔB 的方向跟著什麼轉？", "切到「側視圖」沿著電流元看：用右手定則判斷磁力線繞的方向。"],
     takeaway: "ΔB 的方向垂直於 Δℓ 與 r 所決定的平面，大小與 sin θ 成正比、與 r² 成反比；繞電流元的延長線一圈，ΔB 都沿同心圓切線。整條導線在 P 的磁場，就是每一段電流元的 ΔB 向量相加。",
     full: true, mount: mountBiot});
 })();
