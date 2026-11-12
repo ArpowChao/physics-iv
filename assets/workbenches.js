@@ -47,8 +47,14 @@
       out += opacity === 1 ? line : `<g opacity="${opacity}">${line}</g>`;
     };
     const polygon = (nodes, fill, opacity = .17) => { out += `<polygon points="${nodes.map(x => proj(x).join(",")).join(" ")}" fill="${color(fill)}" opacity="${opacity}"/>`; };
-    const arrow = (a, b, c, w = 2.3, tag, always = false) => {
+    const arrow = (a, b, c, w = 2.3, tag, always = false, opacity = 1) => {
       if (!camera.analysis && !always) return;
+      if (opacity < 1) {                     // 淡入中的箭頭：包在一個半透明群組裡
+        const before = out.length;
+        arrow(a, b, c, w, tag, always);
+        out = out.slice(0, before) + `<g opacity="${opacity.toFixed(3)}">${out.slice(before)}</g>`;
+        return;
+      }
       c = color(c);
       const start = proj(a), end = proj(b);
       const delta = sub(b, a), normal = dot(delta, toward);
@@ -194,29 +200,57 @@
   // 均勻磁場：用一整片淡色箭頭表示「場充滿這個區域」；2D 正視時自動變成 ⊙／⊗。
   // strength（單位 T）給定時，箭頭間距 = spacing1T／√B，單位面積的磁力線數與 B 成正比：磁場越強畫得越密。
   // span 可以是一個數（正方形區域半寬）或 [半寬 u, 半寬 v]。
-  // offset：格點錯開半格（不落在中心）；nudge(point)：把會壓在導線上的格點稍微推開（回傳新位置）。
-  const fieldLattice = (s, b, { center = [0, 0, 0], span = 14, n = 3, size = 7, c = "#7fa3dc", strength, spacing1T, offset = false, nudge } = {}) => {
+  // 均勻磁場的箭頭。strength（T）給定時：先在區域內排好一組固定位置（細格點，用「最遠點優先」排序，
+  // 任何前 N 個都均勻分散），再畫前 N = B × 面積／spacing1T² 個；第 N+1 個依小數部分淡入。
+  // 位置不會因為 B 改變而重排，所以調整或播放時疏密是連續變化，單位面積的箭頭數與 B 成正比。
+  // exclude(point)：不放箭頭的位置（例如導線上、法向量 n 所在的中心）；excludeKey 用來快取。
+  const latticeOrder = new Map();
+  const spreadOrder = (su, sv, step, exclude, excludeKey) => {
+    const key = [su, sv, step, excludeKey].map(x => typeof x === "number" ? x.toFixed(3) : x).join("|");
+    if (latticeOrder.has(key)) return latticeOrder.get(key);
+    const nu = Math.max(1, Math.floor(2 * su / step)), nv = Math.max(1, Math.floor(2 * sv / step)), pts = [];
+    for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+      const a = (i + .5 - nu / 2) * step, d = (j + .5 - nv / 2) * step;
+      if (!exclude || !exclude(a, d)) pts.push([a, d]);
+    }
+    const order = [], best = pts.map(() => Infinity);
+    let pick = pts.reduce((m, q, i) => Math.hypot(q[0] - su * .35, q[1] - sv * .2) < Math.hypot(pts[m][0] - su * .35, pts[m][1] - sv * .2) ? i : m, 0);
+    while (order.length < pts.length) {
+      order.push(pts[pick]); best[pick] = -1;
+      let far = -1, next = -1;
+      pts.forEach((q, i) => {
+        if (best[i] < 0) return;
+        best[i] = Math.min(best[i], Math.hypot(q[0] - pts[pick][0], q[1] - pts[pick][1]));
+        if (best[i] > far + 1e-9) { far = best[i]; next = i; }
+      });
+      if (next < 0) break;
+      pick = next;
+    }
+    latticeOrder.set(key, order);
+    return order;
+  };
+  const fieldLattice = (s, b, { center = [0, 0, 0], span = 14, n = 3, size = 7, c = "#7fa3dc", strength, spacing1T, exclude, excludeKey = "" } = {}) => {
     if (length(b) < 1e-9) return;
     const k = unit(b), ref = Math.abs(k[2]) < .9 ? [0, 0, 1] : [1, 0, 0];
     const u = unit([k[1] * ref[2] - k[2] * ref[1], k[2] * ref[0] - k[0] * ref[2], k[0] * ref[1] - k[1] * ref[0]]);
     const v = [k[1] * u[2] - k[2] * u[1], k[2] * u[0] - k[0] * u[2], k[0] * u[1] - k[1] * u[0]];
     const [su, sv] = Array.isArray(span) ? span : [span, span];
-    let us, vs;
-    if (strength !== undefined) {
-      const gap = (spacing1T || Math.max(su, sv) * .5) / Math.sqrt(Math.max(Math.abs(strength), 1e-3));
-      const axis = half => {
-        if (offset) { const count = 2 * Math.max(1, Math.ceil(half / gap)); return Array.from({ length: count }, (_, i) => (i + .5 - count / 2) * gap).filter(x => Math.abs(x) <= half + 1e-9 || count === 2); }
-        const count = Math.max(1, Math.floor(2 * half / gap) + 1); return Array.from({ length: count }, (_, i) => (i - (count - 1) / 2) * gap);
-      };
-      us = axis(su); vs = axis(sv);
-    } else {
-      us = Array.from({ length: n }, (_, i) => su * (2 * i / (n - 1) - 1)); vs = Array.from({ length: n }, (_, j) => sv * (2 * j / (n - 1) - 1));
+    const place = (a, d, opacity = 1) => {
+      const at = sum(center, sum(mul(u, a), sum(mul(v, d), mul(k, -size / 2))));
+      s.arrow(at, sum(at, mul(k, size)), c, 1.8, undefined, false, opacity);
+    };
+    if (strength === undefined) {
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) place(su * (2 * i / (n - 1) - 1), sv * (2 * j / (n - 1) - 1));
+      return;
     }
-    for (const a of us) for (const d of vs) {
-      let at = sum(center, sum(mul(u, a), sum(mul(v, d), mul(k, -size / 2))));
-      if (nudge) at = sub(nudge(sum(at, mul(k, size / 2))), mul(k, size / 2));
-      s.arrow(at, sum(at, mul(k, size)), c, 1.8);
-    }
+    const s1 = spacing1T || Math.max(su, sv) * .5, step = s1 / 2;   // 細格點可容納到 4 T
+    // exclude 以世界座標判斷：把 (a, d) 換回空間點
+    const world = (a, d) => sum(center, sum(mul(u, a), mul(v, d)));
+    const order = spreadOrder(su, sv, step, exclude && ((a, d) => exclude(world(a, d))), excludeKey + "|" + k.map(x => x.toFixed(2)).join(","));
+    const want = Math.min(order.length, Math.abs(strength) * 4 * su * sv / (s1 * s1));
+    const whole = Math.floor(want), part = want - whole;
+    for (let i = 0; i < whole; i++) place(...order[i]);
+    if (whole < order.length && part > .02) place(...order[whole], part);
   };
   const sceneOut = (s, rows, legend, note, graph = "") => ({ diagram: s.finish(), rows, legend, note, graph });
   const biotModes = [
@@ -1000,14 +1034,9 @@
         if (camera.analysis) s.polygon(corners, C.teal, .15);
         pointArrow(s, zero, [0, -Math.sin(m.angle), Math.cos(m.angle)], 10, C.teal, "n");
         // 磁場充滿整個區域；格點錯開中心（法向量 n 在那裡），也不壓在靜止線圈的導線上。
-        const offWire = q => {
-          if (mode !== "vary") return q;
-          const r = Math.max(Math.abs(q[0]), Math.abs(q[1]));
-          if (Math.abs(r - half) >= 1.5) return q;
-          const k = (r < half ? half - 1.5 : half + 1.5) / r;      // 推到導線內側或外側 1.5 cm
-          return [q[0] * k, q[1] * k, q[2]];
-        };
-        if (m.b) fieldLattice(s, [0, 0, m.b], { span: zone, size: 6, strength: Math.abs(m.b), spacing1T: 4.5, offset: true, nudge: offWire });
+        // 不放在中心（法向量 n）與靜止線圈的導線上
+        const blocked = q => Math.hypot(q[0], q[1]) < 1.6 || (mode === "vary" && Math.abs(Math.max(Math.abs(q[0]), Math.abs(q[1])) - half) < 1.2);
+        if (m.b) fieldLattice(s, [0, 0, m.b], { span: zone, size: 6, strength: Math.abs(m.b), spacing1T: 4.5, exclude: blocked, excludeKey: mode + half });
         if (m.b) pointArrow(s, [-zone, zone + 1.5, 0], [0, 0, m.b], 10, C.blue, "B");
       }
       if (corners) {
