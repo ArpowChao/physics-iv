@@ -194,7 +194,8 @@
   // 均勻磁場：用一整片淡色箭頭表示「場充滿這個區域」；2D 正視時自動變成 ⊙／⊗。
   // strength（單位 T）給定時，箭頭間距 = spacing1T／√B，單位面積的磁力線數與 B 成正比：磁場越強畫得越密。
   // span 可以是一個數（正方形區域半寬）或 [半寬 u, 半寬 v]。
-  const fieldLattice = (s, b, { center = [0, 0, 0], span = 14, n = 3, size = 7, c = "#7fa3dc", strength, spacing1T } = {}) => {
+  // offset：格點錯開半格（不落在中心）；nudge(point)：把會壓在導線上的格點稍微推開（回傳新位置）。
+  const fieldLattice = (s, b, { center = [0, 0, 0], span = 14, n = 3, size = 7, c = "#7fa3dc", strength, spacing1T, offset = false, nudge } = {}) => {
     if (length(b) < 1e-9) return;
     const k = unit(b), ref = Math.abs(k[2]) < .9 ? [0, 0, 1] : [1, 0, 0];
     const u = unit([k[1] * ref[2] - k[2] * ref[1], k[2] * ref[0] - k[0] * ref[2], k[0] * ref[1] - k[1] * ref[0]]);
@@ -203,13 +204,17 @@
     let us, vs;
     if (strength !== undefined) {
       const gap = (spacing1T || Math.max(su, sv) * .5) / Math.sqrt(Math.max(Math.abs(strength), 1e-3));
-      const axis = half => { const count = Math.max(1, Math.floor(2 * half / gap) + 1); return Array.from({ length: count }, (_, i) => (i - (count - 1) / 2) * gap); };
+      const axis = half => {
+        if (offset) { const count = 2 * Math.max(1, Math.ceil(half / gap)); return Array.from({ length: count }, (_, i) => (i + .5 - count / 2) * gap).filter(x => Math.abs(x) <= half + 1e-9 || count === 2); }
+        const count = Math.max(1, Math.floor(2 * half / gap) + 1); return Array.from({ length: count }, (_, i) => (i - (count - 1) / 2) * gap);
+      };
       us = axis(su); vs = axis(sv);
     } else {
       us = Array.from({ length: n }, (_, i) => su * (2 * i / (n - 1) - 1)); vs = Array.from({ length: n }, (_, j) => sv * (2 * j / (n - 1) - 1));
     }
     for (const a of us) for (const d of vs) {
-      const at = sum(center, sum(mul(u, a), sum(mul(v, d), mul(k, -size / 2))));
+      let at = sum(center, sum(mul(u, a), sum(mul(v, d), mul(k, -size / 2))));
+      if (nudge) at = sub(nudge(sum(at, mul(k, size / 2))), mul(k, size / 2));
       s.arrow(at, sum(at, mul(k, size)), c, 1.8);
     }
   };
@@ -945,7 +950,7 @@
       const magnet = mode === "magnet" ? P.magnetFlux(p) : null;
       const t = p.duration * p.phase / 100, m = P.induction(mode, p, t, magnet);
       const half = p.size / 2, extent = mode === "slide" ? Math.max(17, (p.speed * p.duration + .035) * 100 * .65 + 5) :
-        mode === "magnet" ? Math.max(15, Math.abs(m.x) * 100 + 6) : mode === "enter" ? 27 : Math.max(14, half * 1.75);
+        mode === "magnet" ? Math.max(15, Math.abs(m.x) * 100 + 6) : mode === "enter" ? 27 : Math.max(17, half + 10, half * 1.75);
       const s = scene(camera, extent, "感應裝置、外加磁場與迴路的三維圖");
       let corners;
       const rect = (x, y, a, b) => [[x, y, 0], [a, y, 0], [a, b, 0], [x, b, 0]];
@@ -988,13 +993,22 @@
       } else {
         corners = rect(-half, -half, half, half).map(([x, y]) => [x, y * Math.cos(m.angle), y * Math.sin(m.angle)]);
         if (mode === "rotate") s.tube([[-17, 0, 0], [17, 0, 0]], .71, "steel");
+        const zone = Math.max(half + 6, 13);
         if (mode === "vary" && Math.abs(m.b) > 1e-6) {
-          s.polygon(rect(-half - 2, -half - 2, half + 2, half + 2), m.b > 0 ? C.blue : C.violet, .32 * Math.abs(m.b));
+          s.polygon(rect(-zone, -zone, zone, zone), m.b > 0 ? C.blue : C.violet, .12 + .14 * Math.min(1, Math.abs(m.b)));
         }
         if (camera.analysis) s.polygon(corners, C.teal, .15);
         pointArrow(s, zero, [0, -Math.sin(m.angle), Math.cos(m.angle)], 10, C.teal, "n");
-        if (m.b) fieldLattice(s, [0, 0, m.b], { span: half + 3, size: 6, strength: Math.abs(m.b), spacing1T: 4.5 });
-        if (m.b) pointArrow(s, [-12, 12, 0], [0, 0, m.b], 10, C.blue, "B");
+        // 磁場充滿整個區域；格點錯開中心（法向量 n 在那裡），也不壓在靜止線圈的導線上。
+        const offWire = q => {
+          if (mode !== "vary") return q;
+          const r = Math.max(Math.abs(q[0]), Math.abs(q[1]));
+          if (Math.abs(r - half) >= 1.5) return q;
+          const k = (r < half ? half - 1.5 : half + 1.5) / r;      // 推到導線內側或外側 1.5 cm
+          return [q[0] * k, q[1] * k, q[2]];
+        };
+        if (m.b) fieldLattice(s, [0, 0, m.b], { span: zone, size: 6, strength: Math.abs(m.b), spacing1T: 4.5, offset: true, nudge: offWire });
+        if (m.b) pointArrow(s, [-zone, zone + 1.5, 0], [0, 0, m.b], 10, C.blue, "B");
       }
       if (corners) {
         s.tube([...corners, ...(p.closed ? [corners[0]] : [])], .65);
