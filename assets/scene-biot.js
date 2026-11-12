@@ -48,7 +48,7 @@
   };
 
   function mountBiot(root) {
-    const sliders = [["s", "電流元位置", 0, 100, .5, 50, "%"], ["d", "截面距離 d", -6, 6, .05, 2.12, "m"], ["rho", "半徑 ρ", .3, 6, .05, 2.12, "m"], ["r", "距離 r", .6, 8, .05, 3, "m"], ["t", "夾角 θ", 2, 178, .5, 45, "°"], ["p", "方位角 φ", 0, 360, 1, 90, "°"], ["i", "電流 I", .5, 5, .1, 2, "A"]];
+    const sliders = [["s", "電流元位置", 0, 100, .5, 50, "%"], ["d", "r cos θ（沿 Δℓ 到截面）", -6, 6, .05, 2.12, "m"], ["rho", "r sin θ（截面內半徑）", .3, 6, .05, 2.12, "m"], ["p", "方位角 φ", 0, 360, 1, 90, "°"], ["i", "電流 I", .5, 5, .1, 2, "A"]];
     root.innerHTML = `
       <div class="bs-wrap">
         <div class="bs-canvas" aria-label="必歐－沙伐定律三維圖。拖曳黑點 P 移動測點，拖曳空白處旋轉視角。"></div>
@@ -59,7 +59,7 @@
             <p>載流導線上的一小段電流元 IΔℓ，在空間中 P 點產生的微小磁場：</p>
             <div class="bs-eq bs-eq-vec">${math.vec}</div>
             <div class="bs-eq bs-eq-mag">${math.mag}</div>
-            <p class="bs-tip">🖐 拖曳<b>黑點 P</b> 移動測點；用「電流元位置」在導線上換一段電流元（P 不動）。拖曳空白處旋轉視角、滾輪縮放。</p>
+            <p class="bs-tip">🖐 用 <b>r cos θ</b>（截面離電流元多遠）與 <b>r sin θ</b>（截面內的半徑）放置 P，也可直接拖曳<b>黑點 P</b>；用「電流元位置」在導線上換一段電流元（P 不動）。拖曳空白處旋轉視角、滾輪縮放。</p>
           </div>
         </section>
         <section class="bs-panel bs-read">
@@ -67,8 +67,8 @@
           <dl class="bs-body">
             <div><dt>電流 I</dt><dd data-r="i"></dd></div>
             <div><dt>電流元長度 Δℓ</dt><dd>${DL.toFixed(2)} m</dd></div>
-            <div><dt>截面距離 d</dt><dd data-r="dd"></dd></div>
-            <div><dt>半徑 ρ</dt><dd data-r="rho"></dd></div>
+            <div><dt>r cos θ</dt><dd data-r="dd"></dd></div>
+            <div><dt>r sin θ</dt><dd data-r="rho"></dd></div>
             <div><dt>距離 r</dt><dd data-r="r"></dd></div>
             <div><dt>夾角 θ</dt><dd data-r="t"></dd></div>
             <div><dt>sin θ</dt><dd data-r="s"></dd></div>
@@ -85,9 +85,6 @@
             <div class="bs-seg bs-views" role="group" aria-label="視角">
               <button type="button" data-view="front">正視圖</button><button type="button" data-view="side">側視圖</button><button type="button" data-view="top">上視圖</button><button type="button" data-view="iso" aria-pressed="true">立體</button>
             </div>
-            <div class="bs-seg bs-coord" role="group" aria-label="P 的調整方式">
-              <button type="button" data-coord="cyl" aria-pressed="true">平面內用 ρ 調 P</button><button type="button" data-coord="sph" aria-pressed="false">平面內用 r、θ 調 P</button>
-            </div>
             ${sliders.map(([id, label, min, max, step, v, u]) =>
               `<label class="bs-slider" data-row="${id}"><span><span>${label}</span><output data-o="${id}"></output></span><input type="range" data-s="${id}" min="${min}" max="${max}" step="${step}" value="${v}" data-u="${u}"></label>`).join("")}
             <div class="bs-toggles">
@@ -102,7 +99,7 @@
       </div>`;
     const $ = s => root.querySelector(s), $$ = s => [...root.querySelectorAll(s)];
     const host = $(".bs-canvas");
-    const st = {shape: "curve", coord: "cyl", s: 50, r: 3, t: 45, d: 0, rho: 0, p: 90, i: 2, only: false, section: true, plane: true, circle: true, flow: false, P: [0, 0, 0]};
+    const st = {shape: "curve", s: 50, r: 3, t: 45, d: 0, rho: 0, p: 90, i: 2, only: false, section: true, plane: true, circle: true, flow: false, P: [0, 0, 0]};
     for (const b of $$(".bs-fold")) b.addEventListener("click", () => { const p = b.closest(".bs-panel"); p.classList.toggle("folded"); b.textContent = p.classList.contains("folded") ? "▸" : "▾"; });
 
     const frame = () => frameAt(st.shape, SHAPES[st.shape].pick(st.s / 100));
@@ -126,24 +123,7 @@
     // 圓柱座標：d = r cos θ（P 所在截面離電流元的距離，沿 Δℓ 方向為正）、ρ = r sin θ（P 到電流元延長線的半徑）
     const derive = () => { const t = st.t * Math.PI / 180; st.d = st.r * Math.cos(t); st.rho = st.r * Math.sin(t); };
     const fromCyl = () => { st.r = Math.hypot(st.d, st.rho); st.t = Math.atan2(st.rho, st.d) * 180 / Math.PI; };
-    const coordRows = () => {
-      for (const b of $$("[data-coord]")) b.setAttribute("aria-pressed", String(b.dataset.coord === st.coord));
-      $('[data-row="rho"]').hidden = st.coord !== "cyl";
-      for (const id of ["r", "t"]) $(`[data-row="${id}"]`).hidden = st.coord !== "sph";
-    };
-    for (const b of $$("[data-coord]")) b.addEventListener("click", () => { st.coord = b.dataset.coord; coordRows(); });
-    // P 所在的截面只由 d 決定：在 r、θ 模式下，r 與 θ 只讓 P 在這個截面內移動，所以範圍跟著 d 改變
-    const RHO_MAX = 8, deg = Math.PI / 180;
-    function limits() {
-      const ad = Math.abs(st.d), rIn = $('[data-s="r"]'), tIn = $('[data-s="t"]');
-      rIn.min = Math.max(.6, Math.ceil((ad + .001) / .05) * .05).toFixed(2); rIn.max = Math.max(8, Math.hypot(ad, RHO_MAX)).toFixed(2);
-      const flat = ad < .01, edge = flat ? 90 : Math.atan(RHO_MAX / ad) / deg;
-      tIn.disabled = flat;
-      if (flat) { tIn.min = 89.5; tIn.max = 90.5; }
-      else if (st.d > 0) { tIn.min = 2; tIn.max = Math.min(88, Math.floor(edge * 2) / 2); }
-      else { tIn.min = Math.max(92, Math.ceil((180 - edge) * 2) / 2); tIn.max = 178; }
-    }
-    function syncInputs() { derive(); limits(); for (const inp of $$("[data-s]")) inp.value = st[inp.dataset.s]; }
+    function syncInputs() { derive(); for (const inp of $$("[data-s]")) inp.value = st[inp.dataset.s]; }
     function readouts() {
       const ph = physics();
       $('[data-r="i"]').textContent = st.i.toFixed(1) + " A";
@@ -161,12 +141,6 @@
     for (const inp of $$("[data-s]")) inp.addEventListener("input", () => {
       const k = inp.dataset.s; st[k] = +inp.value;
       if (k === "d" || k === "rho") fromCyl();
-      else if (k === "r") { st.rho = Math.sqrt(Math.max(st.r * st.r - st.d * st.d, .0025)); fromCyl(); }
-      else if (k === "t") {
-        // 保持 d：ρ = d tan θ（d < 0 時 θ > 90°，tan θ < 0，ρ 仍為正）
-        if (Math.abs(st.d) >= .01) st.rho = clamp(st.d * Math.tan(st.t * deg), .05, RHO_MAX);
-        fromCyl();
-      }
       if (k === "s") relate(); else if (k !== "i") placeP();
       changed();
     });
@@ -177,7 +151,7 @@
       placeP(); changed(); shapeDirty = true;
     };
     for (const b of $$("[data-shape]")) b.addEventListener("click", () => setShape(b.dataset.shape));
-    placeP(); derive(); coordRows(); syncInputs(); readouts();
+    placeP(); derive(); syncInputs(); readouts();
 
     let disposed = false, dirty = true, shapeDirty = true, raf = 0, cleanup = () => {};
     const api = {
@@ -255,7 +229,7 @@
       const dBar = new T.Mesh(new T.CylinderGeometry(.05, .05, 1, 12), mat(0x7b4fb8)); scene.add(dBar);
       const cDot = new T.Mesh(new T.SphereGeometry(.09, 16, 10), mat(0x2a62b8)); scene.add(cDot);
       const rhoLine = new T.Line(new T.BufferGeometry(), new T.LineDashedMaterial({color: 0x2a62b8, dashSize: .16, gapSize: .1})); scene.add(rhoLine);
-      const dLabel = label("d", "bs-purple"), rhoLabel = label("ρ", "bs-blue");
+      const dLabel = label("r cos θ", "bs-purple bs-small"), rhoLabel = label("r sin θ", "bs-blue bs-small");
       const circleHeads = Array.from({length: 4}, () => { const c = new T.Mesh(new T.ConeGeometry(.09, .28, 16), mat(0x2a62b8)); scene.add(c); return c; });
       const dots = Array.from({length: 26}, () => { const d = new T.Mesh(new T.SphereGeometry(.15, 14, 10), new T.MeshBasicMaterial({color: 0xffe66b})); scene.add(d); return d; });
 
@@ -397,7 +371,7 @@
   EM.scenes.push({id: "biot-savart", title: "必歐－沙伐定律：電流元的磁場", sections: ["2-2"], chapter: 2,
     lead: "彎曲導線上任一小段電流元，在 P 點產生的磁場朝哪裡？大小和 r、θ 有什麼關係？",
     description: "彎曲導線、直導線或圓線圈上任選電流元，三維拖曳測點 P，看 r、θ、ΔB、Δℓ–r 平面與同心圓磁力線；可只顯示電流元。",
-    steps: ["按「只顯示電流元」，固定 d，把半徑 ρ 加倍：r、θ、|ΔB| 各怎麼變？", "截面固定，切到「平面內用 r、θ 調 P」：只改 θ（P 在同一截面內移動），|ΔB| 怎麼變？把 d 調到 0 時 θ 只能是 90°，為什麼？", "改變方位角 φ：|ΔB| 會變嗎？ΔB 的方向和同心圓磁力線有什麼關係？", "P 不動，拖「電流元位置」換導線上不同的一段：哪一段的 ΔB 最大？方向都一樣嗎？", "切到「側視圖」沿著電流元看：用右手定則判斷磁力線繞的方向。"],
+    steps: ["按「只顯示電流元」，固定 r cos θ，把 r sin θ 加倍：r、θ、|ΔB| 各怎麼變？", "固定 r sin θ，把 r cos θ 從 0 調大（P 的截面往前移）：θ 怎麼變？|ΔB| 為什麼變小？r cos θ = 0 時 θ 是幾度？", "改變方位角 φ：|ΔB| 會變嗎？ΔB 的方向和同心圓磁力線有什麼關係？", "P 不動，拖「電流元位置」換導線上不同的一段：哪一段的 ΔB 最大？方向都一樣嗎？", "切到「側視圖」沿著電流元看：用右手定則判斷磁力線繞的方向。"],
     takeaway: "ΔB 的方向垂直於 Δℓ 與 r 所決定的平面，大小與 sin θ 成正比、與 r² 成反比；繞電流元的延長線一圈，ΔB 都沿同心圓切線。整條導線在 P 的磁場，就是每一段電流元的 ΔB 向量相加。",
     full: true, mount: mountBiot});
 })();

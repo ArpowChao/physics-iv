@@ -143,3 +143,4 @@ html.has-full { overflow: hidden; }
 .bs-purple { color: #6a3fa8; } .bs-blue { color: #2a62b8; }
 .bs-coord button[aria-pressed="true"] { background: #2a62b8; border-color: #2a62b8; }
 .bs-slider[hidden] { display: none; }
+.bs-label.bs-small { font-size: 14px; }
