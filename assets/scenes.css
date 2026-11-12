@@ -140,3 +140,6 @@ html.has-full { overflow: hidden; }
 }
 .bs-v { position: relative; display: inline-block; }
 .bs-v::before { content: "→"; position: absolute; left: 0; right: 0; top: -.68em; text-align: center; font: normal 400 .72em/1 system-ui, sans-serif; }
+.bs-purple { color: #6a3fa8; } .bs-blue { color: #2a62b8; }
+.bs-coord button[aria-pressed="true"] { background: #2a62b8; border-color: #2a62b8; }
+.bs-slider[hidden] { display: none; }

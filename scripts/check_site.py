@@ -164,6 +164,15 @@ def run(base, out):
         a = page.evaluate("(()=>{const a=document.querySelector('#scene-root').sceneApi;a.set({shape:'curve'});return a.state().P})()")
         b = page.evaluate("(()=>{const a=document.querySelector('#scene-root').sceneApi;a.set({s:80});return a.state().P})()")
         assert a == b
+        # 圓柱座標：d = 0、ρ = 3 m → θ = 90°、r = 3 m；d 改成 4 m → r = 5 m、sin θ = 0.6
+        page.evaluate("document.querySelector('#scene-root').sceneApi.set({s:50,d:0,rho:3})")
+        assert bs() == "1.78 × 10⁻⁸ T", bs()
+        assert page.locator('[data-r="t"]').inner_text() == "90.0°"
+        page.locator('[data-s="d"]').fill("4")
+        assert page.locator('[data-r="r"]').inner_text() == "5.00 m"
+        assert bs() == "3.84 × 10⁻⁹ T", bs()
+        page.get_by_role("button", name="用 r、θ 調 P").click()
+        assert page.locator('[data-s="r"]').is_visible() and not page.locator('[data-s="d"]').is_visible()
         page.get_by_role("button", name="只顯示電流元").click()
         assert page.get_by_role("button", name="只顯示電流元").get_attribute("aria-pressed") == "true"
         page.locator(".scene-fullbar button").click()
