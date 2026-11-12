@@ -151,9 +151,21 @@ def run(base, out):
         page.evaluate("document.querySelector('#scene-root').sceneApi.set({t:90})")
         assert bs() == "7.11 × 10⁻⁸ T", bs()
         st = page.evaluate("(()=>{const s=document.querySelector('#scene-root').sceneApi.state();return s})()")
-        # ΔB 方向 = x̂ × r̂，與 r 垂直、與導線垂直
-        dot = sum(a * b for a, b in zip(st["dir"], st["P"]))
-        assert abs(dot) < 1e-9 and st["dir"][0] == 0, st
+        # ΔB 方向 = t̂ × r̂，與 r、電流元方向都垂直（彎曲導線上任一段皆然）
+        for shape, s in [("curve", 50), ("curve", 20), ("loop", 30), ("straight", 70)]:
+            st = page.evaluate(f"(()=>{{const a=document.querySelector('#scene-root').sceneApi;a.set({{shape:'{shape}'}});a.set({{s:{s}}});return a.state()}})()")
+            dot = lambda u, v: sum(a * b for a, b in zip(u, v))
+            assert abs(dot(st["dir"], st["rv"])) < 1e-9 and abs(dot(st["dir"], st["t"])) < 1e-9, st
+            cr = [st["t"][1]*st["rv"][2]-st["t"][2]*st["rv"][1], st["t"][2]*st["rv"][0]-st["t"][0]*st["rv"][2], st["t"][0]*st["rv"][1]-st["t"][1]*st["rv"][0]]
+            assert dot(cr, st["dir"]) > 0
+            sin = (sum(c * c for c in cr) ** .5) / st["r"]
+            assert abs(st["B"] - 1e-7 * 2 * .8 * sin / st["r"] ** 2) < 1e-15, st
+        # 換電流元時 P 固定不動
+        a = page.evaluate("(()=>{const a=document.querySelector('#scene-root').sceneApi;a.set({shape:'curve'});return a.state().P})()")
+        b = page.evaluate("(()=>{const a=document.querySelector('#scene-root').sceneApi;a.set({s:80});return a.state().P})()")
+        assert a == b
+        page.get_by_role("button", name="只顯示電流元").click()
+        assert page.get_by_role("button", name="只顯示電流元").get_attribute("aria-pressed") == "true"
         page.locator(".scene-fullbar button").click()
         page.wait_for_function("document.querySelector('#scene-root').classList.contains('is-full')")
         h = page.evaluate("document.querySelector('.bs-wrap').getBoundingClientRect().height")

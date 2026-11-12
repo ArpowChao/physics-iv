@@ -95,7 +95,7 @@ html.has-full { overflow: hidden; }
 /* 必歐－沙伐 3D：整頁畫布＋浮動面板 */
 .bs-wrap { position: relative; height: clamp(520px, 78vh, 820px); border: 1px solid var(--line, #d7e0e2); border-radius: 14px; overflow: hidden; background: #f3f7f8; }
 .scene-root.is-full .bs-wrap { flex: 1 1 0; height: auto; min-height: 0; border-radius: 10px; }
-.bs-canvas { position: absolute; inset: 0; }
+.bs-canvas { position: absolute; inset: 0; z-index: 0; }
 .bs-canvas canvas { display: block; }
 .bs-labels { position: absolute; inset: 0; touch-action: none; }
 .bs-loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: #5b6770; }
@@ -120,13 +120,15 @@ html.has-full { overflow: hidden; }
 .bs-read dt { color: #4c5a61; } .bs-read dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
 .bs-read .bs-key dd { color: #c43d34; }
 .bs-ctrl { right: 12px; top: 12px; width: 268px; }
-.bs-views { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
-.bs-views button, .bs-toggles button { border: 1px solid #cbd7da; background: #fff; border-radius: 8px; padding: 5px 2px; font: inherit; font-size: .8rem; cursor: pointer; color: #1d2a30; }
-.bs-views button[aria-pressed="true"], .bs-toggles button[aria-pressed="true"] { background: #217b89; border-color: #217b89; color: #fff; }
+.bs-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; margin-bottom: 8px; }
+.bs-seg button, .bs-toggles button { border: 1px solid #cbd7da; background: #fff; border-radius: 8px; padding: 5px 2px; font: inherit; font-size: .8rem; cursor: pointer; color: #1d2a30; }
+.bs-seg button[aria-pressed="true"], .bs-toggles button[aria-pressed="true"] { background: #217b89; border-color: #217b89; color: #fff; }
 .bs-slider { display: grid; gap: 2px; margin: 6px 0; }
 .bs-slider > span { display: flex; justify-content: space-between; } .bs-slider output { font-variant-numeric: tabular-nums; font-weight: 600; }
 .bs-slider input { width: 100%; accent-color: #217b89; }
 .bs-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 8px; }
+.bs-toggles [data-t="only"] { grid-column: 1 / -1; }
+.bs-shapes button[aria-pressed="true"] { background: #f2d33a; border-color: #d8b820; color: #1d2a30; }
 @media (max-width: 760px) {
   .bs-wrap { height: auto; display: flex; flex-direction: column; }
   .bs-canvas { position: relative; height: 62vh; min-height: 340px; order: 0; }
