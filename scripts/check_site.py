@@ -160,10 +160,14 @@ def run(base, out):
             assert dot(cr, st["dir"]) > 0
             sin = (sum(c * c for c in cr) ** .5) / st["r"]
             assert abs(st["B"] - 1e-7 * 2 * .8 * sin / st["r"] ** 2) < 1e-15, st
-        # 換電流元時 P 固定不動
-        a = page.evaluate("(()=>{const a=document.querySelector('#scene-root').sceneApi;a.set({shape:'curve'});return a.state().P})()")
-        b = page.evaluate("(()=>{const a=document.querySelector('#scene-root').sceneApi;a.set({s:80});return a.state().P})()")
-        assert a == b
+        # 換電流元位置時 r cos θ、r sin θ、φ、|ΔB| 都不變，P 跟著電流元移動
+        a = page.evaluate("(()=>{const a=document.querySelector('#scene-root').sceneApi;a.set({shape:'curve'});a.set({s:50,d:1.5,rho:2.5,p:60});return a.state()})()")
+        page.locator('[data-s="s"]').fill("80")
+        b = page.evaluate("document.querySelector('#scene-root').sceneApi.state()")
+        for k in ("d", "rho", "p", "B"):
+            assert abs(a[k] - b[k]) < 1e-9, (k, a[k], b[k])
+        assert a["P"] != b["P"] and abs(sum(x * x for x in b["rv"]) ** .5 - (1.5 ** 2 + 2.5 ** 2) ** .5) < 1e-9
+        assert page.locator('[data-r="dd"]').inner_text() == "1.50 m" and page.locator('[data-r="rho"]').inner_text() == "2.50 m"
         # 圓柱座標：d = 0、ρ = 3 m → θ = 90°、r = 3 m；d 改成 4 m → r = 5 m、sin θ = 0.6
         page.evaluate("document.querySelector('#scene-root').sceneApi.set({s:50,d:0,rho:3})")
         assert bs() == "1.78 × 10⁻⁸ T", bs()
