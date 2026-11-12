@@ -122,25 +122,47 @@
   const turnsChoices = [100, 300, 600];
 
   function mountMagnetCoil(root, opts = {}) {
+    const fold = `<button type="button" class="sim-fold" aria-label="收合" aria-expanded="true">▾</button>`;
     root.innerHTML = `
-      <div class="scene-tabs" role="tablist" aria-label="示範動作">${demos.map((d, i) =>
-        `<button type="button" role="tab" class="scene-tab" data-demo="${d.id}" aria-selected="${i === 0}">${d.name}</button>`).join("")}</div>
-      <p class="scene-hint" id="scene-hint"></p>
-      <div class="scene-stage"><canvas id="scene-canvas" aria-label="磁鐵、線圈與檢流計。可拖曳磁鐵。"></canvas></div>
-      <div class="scene-controls">
-        <button type="button" class="button primary" id="scene-play">暫停</button>
-        <label class="scene-ctl">示範速度 <input type="range" id="scene-speed" min="0.3" max="2" step="0.1" value="1"><output id="scene-speed-out">1.0×</output></label>
-        <label class="scene-ctl">線圈匝數 <select id="scene-turns">${turnsChoices.map(n => `<option value="${n}" ${n === 300 ? "selected" : ""}>${n} 匝</option>`).join("")}</select></label>
-        <label class="scene-ctl"><input type="checkbox" id="scene-lines" checked> 顯示磁力線</label>
-        <label class="scene-ctl"><input type="checkbox" id="scene-flip"> 磁極對調</label>
-      </div>
-      <dl class="scene-readouts">
-        <div><dt>穿過線圈的磁通量 Φ（單匝）</dt><dd id="ro-phi">—</dd></div>
-        <div><dt>感應電動勢 ε</dt><dd id="ro-emf">—</dd></div>
-        <div><dt>感應電流（從磁鐵側看線圈）</dt><dd id="ro-dir">—</dd></div>
-      </dl>
-      <div class="scene-stage"><canvas id="scene-chart" aria-label="磁通量與感應電動勢隨時間變化"></canvas></div>
-      <p class="muted small">模型：磁鐵兩端各視為一個磁極，線圈半徑 3 cm、磁鐵長 8 cm。磁力線只畫紙面上的分布；讀值為這個模型的數值，僅供比較大小。</p>`;
+      <div class="sim-frame kit-frame">
+        <div class="kit-top">
+          <div class="scene-tabs sim-seg" role="tablist" aria-label="示範動作">${demos.map((d, i) =>
+            `<button type="button" role="tab" class="scene-tab" data-demo="${d.id}" aria-selected="${i === 0}">${d.name}</button>`).join("")}</div>
+          <div class="kit-top-tools"><button type="button" class="sim-btn kit-side-toggle" aria-pressed="false">⇥ 收起面板</button><span data-sim-bar></span></div>
+        </div>
+        <p class="scene-hint" id="scene-hint"></p>
+        <div class="kit-layout">
+          <div class="kit-main">
+            <div class="scene-stage" data-fill><canvas id="scene-canvas" aria-label="磁鐵、線圈與檢流計。可拖曳磁鐵。"></canvas></div>
+            <section class="sim-panel kit-chart-panel"><header><strong>圖表：Φ 與 ε</strong>${fold}</header><div class="sim-body scene-stage"><canvas id="scene-chart" aria-label="磁通量與感應電動勢隨時間變化"></canvas></div></section>
+          </div>
+          <aside class="kit-side">
+            <section class="sim-panel"><header><strong>控制</strong>${fold}</header><div class="sim-body kit-panel">
+              <div class="kit-buttons"><button type="button" class="sim-btn primary" id="scene-play">暫停</button></div>
+              <label class="kit-ctl"><span class="kit-ctl-line"><span>示範速度</span><output id="scene-speed-out">1.0×</output></span><input type="range" id="scene-speed" min="0.3" max="2" step="0.1" value="1"></label>
+              <label class="kit-ctl"><span>線圈匝數</span><select id="scene-turns">${turnsChoices.map(n => `<option value="${n}" ${n === 300 ? "selected" : ""}>${n} 匝</option>`).join("")}</select></label>
+              <label class="kit-check sim-toggle"><input type="checkbox" id="scene-lines" checked><span>顯示磁力線</span></label>
+              <label class="kit-check sim-toggle"><input type="checkbox" id="scene-flip"><span>磁極對調</span></label>
+            </div></section>
+            <section class="sim-panel"><header><strong>即時讀值</strong>${fold}</header><dl class="sim-body kit-readouts">
+              <div><dt>磁通量 Φ（單匝）</dt><dd id="ro-phi">—</dd></div>
+              <div><dt>感應電動勢 ε</dt><dd id="ro-emf">—</dd></div>
+              <div><dt>感應電流（從磁鐵側看）</dt><dd id="ro-dir">—</dd></div>
+            </dl></section>
+          </aside>
+        </div>
+        <p class="muted small kit-note">模型：磁鐵兩端各視為一個磁極，線圈半徑 3 cm、磁鐵長 8 cm。磁力線只畫紙面上的分布；讀值為這個模型的數值，僅供比較大小。</p>
+      </div>`;
+    for (const b of root.querySelectorAll(".sim-fold")) b.addEventListener("click", () => {
+      const p = b.closest(".sim-panel"), on = p.classList.toggle("folded");
+      b.textContent = on ? "▸" : "▾"; b.setAttribute("aria-expanded", String(!on)); window.dispatchEvent(new Event("resize"));
+    });
+    const sideBtn = root.querySelector(".kit-side-toggle");
+    sideBtn.addEventListener("click", () => {
+      const on = root.querySelector(".kit-frame").classList.toggle("side-hidden");
+      sideBtn.setAttribute("aria-pressed", String(on)); sideBtn.textContent = on ? "⇤ 打開面板" : "⇥ 收起面板";
+      window.dispatchEvent(new Event("resize"));
+    });
     const $ = id => root.querySelector("#" + id);
     const canvas = $("scene-canvas"), chart = $("scene-chart");
     const st = {kind: "bar", x: -0.10, y: 0, angle: 0, roll: 0, flip: false};
@@ -283,7 +305,7 @@
       L.label("0", cxm, cym - r - 5, {size: 11, color: C.muted});
     }
     function draw() {
-      const {ctx, w, h} = fitCanvas(canvas, EM.sceneKit.stageHeight(canvas, 0.5, 250, 420));
+      const {ctx, w, h} = fitCanvas(canvas, EM.sceneKit.stageHeight(canvas, 0.56, 300, 520));
       view.w = w; view.h = h; view.s = w / 0.34; view.ox = w * 0.5 + 0.015 * view.s; view.oy = h * 0.54;
       const L = makeLabeler(ctx, w, h);
       ctx.fillStyle = C.paper; ctx.fillRect(0, 0, w, h);
@@ -433,7 +455,9 @@
       </div></div>`;
     const root = main.querySelector("#scene-root");
     const dispose = scene.mount(root, {demo});
-    const bar = document.createElement("div"); bar.className = "scene-fullbar"; root.prepend(bar);
+    const bar = document.createElement("div"); bar.className = "scene-fullbar";
+    const slot = root.querySelector("[data-sim-bar]");
+    slot ? slot.append(bar) : root.prepend(bar);
     const unfull = EM.sceneKit.fullscreenButton(root, bar, {title: scene.title});
     if (new URLSearchParams(location.search).has("selftest")) window.__sceneRoot = root;
     return () => { unfull(); dispose && dispose(); };
