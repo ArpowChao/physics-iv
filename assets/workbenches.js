@@ -136,7 +136,9 @@
       activeAxes.forEach(axis => arrow(zero, zero.map((_, i) => i === axis ? g : 0), C.muted, 1.1, camera.labels ? "xyz"[axis] : "", true));
     }
     return {
-      ...art, draw, polygon, arrow, dot: mark, probe, charge, landmark, surface, annulus, fieldKey, project: proj, scale, finish() {
+      ...art, draw, polygon, arrow, dot: mark, probe, charge, landmark, surface, annulus, fieldKey, project: proj, scale, toward, plane: camera.plane || null,
+      glyph(v, c, front) { const [x, y] = proj(v); normalGlyph(x, y, color(c), front); },
+      finish() {
         // Keep vector tags readable and inside the viewport; place overlapping labels on nearby rows.
         const used = [];
         const labels = tags.map(([[x, y], text, color]) => {
@@ -316,6 +318,19 @@
       if (mode === "element") {
         const wire = mul(direction, Math.min(28, extent));
         s.tube([sub(e.m, wire), sum(e.m, wire)], .92);
+      } else if ((mode === "loop" || mode === "solenoid") && s.plane && s.plane !== "xy") {
+        // 側視（XZ、YZ）：線圈正好側對畫面，改畫成課本的剖面圖——每一圈切過畫面的兩點標 ⊙（出紙面）／⊗（入紙面）
+        const side = sub([1, 1, 0], mul(s.toward, dot([1, 1, 0], s.toward))), h = unit([side[0], side[1], 0]);
+        m.paths.forEach(({ nodes, sign }) => {
+          const z = nodes[0][2], r = Math.hypot(nodes[0][0], nodes[0][1]);
+          s.draw([sum(mul(h, -r), [0, 0, z]), sum(mul(h, r), [0, 0, z])], C.amber, 1, "2 4", .45);
+          for (const k of [-1, 1]) {
+            const pos = sum(mul(h, k * r), [0, 0, z]);
+            // 線圈逆時針（從 +z 看）：在 (x, y) 處的電流方向為 (−y, x)
+            const tdir = mul([-pos[1], pos[0], 0], Math.sign(p.i || 1) * sign);
+            if (p.i) s.glyph(pos, C.amber, dot(tdir, s.toward) > 0); else s.dot(pos, C.amber, "", 2.6);
+          }
+        });
       } else {
         [...m.paths].sort((a, b) => s.depth(a.nodes[0]) - s.depth(b.nodes[0])).forEach(({ nodes, sign }, idx, arr) => {
           s.tube(nodes, mode === "solenoid" ? .29 : .62);
@@ -349,7 +364,8 @@
         rows.push(item("ideal", "長直導線近似（同一垂距）", r >= .45 ? fmt(20 * Math.abs(p.i) / r, 3) + " μT" : "—"));
       }
       if (mode === "solenoid") rows.push(item("ideal", "長螺線管內部近似", fmt(40 * Math.PI * Math.abs(p.i) * p.turns / p.coil, 3) + " μT"));
-      return sceneOut(s, rows, [[C.amber, "電流／Δℓ"], [C.blue, "電流元指向 P 的 r"], [C.violet, "分磁場 ΔB"], [C.teal, "向量和 B"]],
+      const sideCut = (mode === "loop" || mode === "solenoid") && s.plane && s.plane !== "xy";
+      return sceneOut(s, rows, [[C.amber, sideCut ? "線圈剖面：⊙ 電流出紙面、⊗ 入紙面" : "電流／Δℓ"], [C.blue, "電流元指向 P 的 r"], [C.violet, "分磁場 ΔB"], [C.teal, "向量和 B"]],
         !m.smallElement ? "r 小於電流元長的 3 倍，不能把這段視為小電流元；請把 P 移遠或縮短 Δℓ。" : m.unsafe ? "P 太接近理想細導線；線徑未納入模型，此處不顯示量值。" :
           "Δℓ 沿傳統電流方向，公式中的 I 取量值。滑桿的正負表示電流相對基準的方向。箭長示意，分量用全域 x、y、z 座標。有限線段與螺線管以電流元疊加，省略外部回路，螺線管以同軸圓圈近似。");
     }

@@ -117,6 +117,14 @@ def run(base, out):
         # 單一電流元已改為獨立的 3D 情境實驗，舊網址要導向
         page.goto(f"{base.rstrip('/')}/#labs/biot/element")
         page.wait_for_function("location.hash==='#labs/biot-savart'")
+        # 螺線管側視（XZ）改畫剖面：每匝左右各一個 ⊙／⊗，左邊出紙面、右邊入紙面（I > 0，B 朝 +z）
+        go("labs/biot/solenoid")
+        page.click('[data-dimension="2d"]'); page.click('[data-plane="xz"]')
+        page.wait_for_function("document.querySelector('#bench-plot svg').dataset.projection==='xz'")
+        glyphs = page.evaluate("""[...document.querySelectorAll('#bench-plot svg circle[data-normal]')].map(c=>[+c.getAttribute('cx'), c.dataset.normal])""")
+        xs = sorted(x for x, _ in glyphs)
+        left = [n for x, n in glyphs if x < xs[0] + 3]; right = [n for x, n in glyphs if x > xs[-1] - 3]
+        assert len(left) == len(right) == 16 and set(left) == {"out"} and set(right) == {"in"}, (len(left), len(right), set(left), set(right))
         go("labs/biot/straight")
         plot = page.locator("#bench-plot svg")
         before = plot.inner_html()
