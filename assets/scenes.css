@@ -91,3 +91,50 @@ html.has-full { overflow: hidden; }
 .sim-section .mono { color: var(--accent); margin-right: 4px; }
 .sim-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
 .sim-card strong { font-size: 1rem; }
+
+/* 必歐－沙伐 3D：整頁畫布＋浮動面板 */
+.bs-wrap { position: relative; height: clamp(520px, 78vh, 820px); border: 1px solid var(--line, #d7e0e2); border-radius: 14px; overflow: hidden; background: #f3f7f8; }
+.scene-root.is-full .bs-wrap { flex: 1 1 0; height: auto; min-height: 0; border-radius: 10px; }
+.bs-canvas { position: absolute; inset: 0; }
+.bs-canvas canvas { display: block; }
+.bs-labels { position: absolute; inset: 0; touch-action: none; }
+.bs-loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: #5b6770; }
+.bs-label { font: italic 600 17px/1 "Times New Roman", serif; color: #15191c; pointer-events: none; text-shadow: 0 0 3px #fff, 0 0 3px #fff; white-space: nowrap; }
+.bs-label.bs-big { font-size: 20px; }
+.bs-axis { color: #6b7a82; font-size: 16px; }
+.bs-red { color: #c43d34; } .bs-green { color: #2e8a48; } .bs-teal { color: #217b89; }
+.bs-panel { position: absolute; z-index: 2; background: rgba(255,255,255,.94); border: 1px solid #d5dfe2; border-radius: 12px; box-shadow: 0 6px 18px rgba(20,40,50,.12); font-size: .9rem; color: #1d2a30; backdrop-filter: blur(4px); }
+.bs-panel header { display: flex; align-items: baseline; gap: 8px; padding: 8px 10px 6px 14px; border-bottom: 1px solid #e3eaec; }
+.bs-panel header span { color: #6b7a82; font-size: .78rem; }
+.bs-fold { margin-left: auto; border: 0; background: none; font-size: 1rem; cursor: pointer; color: #4c5a61; padding: 0 4px; }
+.bs-panel.folded .bs-body { display: none; } .bs-panel.folded header { border-bottom: 0; }
+.bs-body { padding: 8px 14px 12px; margin: 0; }
+.bs-formula { left: 12px; top: 12px; width: 300px; }
+.bs-formula p { margin: 4px 0; line-height: 1.5; }
+.bs-eq { margin: 6px 0; padding: 6px 4px; background: #f6f9fa; border-radius: 8px; font-size: 1.05rem; }
+.bs-eq math { font-size: 1.05rem; }
+.bs-tip { font-size: .82rem; color: #4c5a61; }
+.bs-read { left: 12px; bottom: 12px; width: 300px; }
+.bs-read dl, dl.bs-body { display: grid; gap: 2px; }
+.bs-read dl > div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.bs-read dt { color: #4c5a61; } .bs-read dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.bs-read .bs-key dd { color: #c43d34; }
+.bs-ctrl { right: 12px; top: 12px; width: 268px; }
+.bs-views { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+.bs-views button, .bs-toggles button { border: 1px solid #cbd7da; background: #fff; border-radius: 8px; padding: 5px 2px; font: inherit; font-size: .8rem; cursor: pointer; color: #1d2a30; }
+.bs-views button[aria-pressed="true"], .bs-toggles button[aria-pressed="true"] { background: #217b89; border-color: #217b89; color: #fff; }
+.bs-slider { display: grid; gap: 2px; margin: 6px 0; }
+.bs-slider > span { display: flex; justify-content: space-between; } .bs-slider output { font-variant-numeric: tabular-nums; font-weight: 600; }
+.bs-slider input { width: 100%; accent-color: #217b89; }
+.bs-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 8px; }
+@media (max-width: 760px) {
+  .bs-wrap { height: auto; display: flex; flex-direction: column; }
+  .bs-canvas { position: relative; height: 62vh; min-height: 340px; order: 0; }
+  .bs-labels { position: absolute; }
+  .bs-panel { position: static; width: auto; margin: 8px; box-shadow: none; }
+  .bs-ctrl { order: 1; } .bs-read { order: 2; } .bs-formula { order: 3; }
+  .bs-loading { position: absolute; height: 62vh; }
+  .scene-root.is-full .bs-wrap { overflow: auto; }
+}
+.bs-v { position: relative; display: inline-block; }
+.bs-v::before { content: "→"; position: absolute; left: 0; right: 0; top: -.68em; text-align: center; font: normal 400 .72em/1 system-ui, sans-serif; }

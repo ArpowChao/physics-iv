@@ -141,6 +141,26 @@ def run(base, out):
         page.wait_for_function("document.querySelector('[data-ro=tau]').textContent.startsWith('0.018')")
         assert ro("F") == "0.45 N"
 
+        # 必歐－沙伐 3D：|ΔB| = μ0/4π · I Δℓ sinθ / r²（Δℓ = 0.8 m）
+        go("labs/biot-savart")
+        page.locator(".bs-canvas canvas").wait_for(state="attached")
+        bs = lambda: page.locator('[data-r="b"]').inner_text()
+        assert bs() == "1.26 × 10⁻⁸ T", bs()
+        page.evaluate("document.querySelector('#scene-root').sceneApi.set({r:1.5})")
+        assert bs() == "5.03 × 10⁻⁸ T", bs()   # r 減半 → 4 倍
+        page.evaluate("document.querySelector('#scene-root').sceneApi.set({t:90})")
+        assert bs() == "7.11 × 10⁻⁸ T", bs()
+        st = page.evaluate("(()=>{const s=document.querySelector('#scene-root').sceneApi.state();return s})()")
+        # ΔB 方向 = x̂ × r̂，與 r 垂直、與導線垂直
+        dot = sum(a * b for a, b in zip(st["dir"], st["P"]))
+        assert abs(dot) < 1e-9 and st["dir"][0] == 0, st
+        page.locator(".scene-fullbar button").click()
+        page.wait_for_function("document.querySelector('#scene-root').classList.contains('is-full')")
+        h = page.evaluate("document.querySelector('.bs-wrap').getBoundingClientRect().height")
+        assert h > 700, h
+        page.locator(".scene-fullbar button").click()
+        page.wait_for_function("!document.querySelector('#scene-root').classList.contains('is-full')")
+
         exams = page.evaluate("EM.exams")
         assert len(exams) == 3
         all_ids = set()
@@ -180,7 +200,7 @@ def run(base, out):
         assert len(seen_sections) == 12
 
         routes = ["home", "course", "course/chapter-2", "course/2-4", "course/1-2/1", "course/3-3/2",
-                  "labs", "labs/coulomb-law", "labs/efield", "labs/deflect", "labs/b-particle", "labs/dc-motor", "labs/magnet-coil",
+                  "labs", "labs/coulomb-law", "labs/efield", "labs/deflect", "labs/b-particle", "labs/dc-motor", "labs/magnet-coil", "labs/biot-savart",
                   "concepts", "concepts/3", "practice", "practice/1", "practice/2", "practice/3", "reference"]
         for width in [320, 390, 768, 1024, 1440]:
             page.set_viewport_size({"width": width, "height": 940})

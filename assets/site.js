@@ -23,9 +23,9 @@
   // 舊版「基礎示意」已由情境實驗與工作臺取代，保留網址導向
   const legacyLabs = {coulomb:"coulomb-law",field:"efield",potential:"potential-map/plates",compass:"biot/compass",conductors:"biot/straight",
     wireforce:"magnetic-force/wire",particle:"b-particle",flux:"induction/vary",lenz:"magnet-coil",generator:"induction/rotate",transformer:"induction/transformer",wave:"em-wave",
-    "magnetic-force/motor":"dc-motor","induction/magnet":"magnet-coil"};
+    "magnetic-force/motor":"dc-motor","induction/magnet":"magnet-coil","biot/element":"biot-savart"};
   const benchFor = sid => EM.workbenches.find(b=>b.sections.includes(sid));
-  const benchURL = (b,sid) => "#labs/"+b.id+({"1-1":"/field-lines","1-2":"/field-lines","2-2":"/straight","2-3":"/wire","3-2":"/enter","3-3":"/rotate","3-4":"/transformer"}[sid]||"");
+  const benchURL = (b,sid) => "#labs/"+b.id+({"1-1":"/field-lines","1-2":"/field-lines","2-1":"/compass","2-2":"/straight","2-3":"/wire","3-2":"/enter","3-3":"/rotate","3-4":"/transformer"}[sid]||"");
   const particleLinks = () => link("#labs/particle-apps/linear","粒子加速器")+link("#labs/particle-apps/aurora","極光與磁鏡");
   const byChapter = id => EM.sections.filter(s=>s.id.startsWith(id+"-"));
   const stamp = id => String(id).padStart(2,"0");

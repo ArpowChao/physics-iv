@@ -255,10 +255,6 @@
   const sceneOut = (s, rows, legend, note, graph = "") => ({ diagram: s.finish(), rows, legend, note, graph });
   const biotModes = [
     {
-      id: "element", title: "單一電流元", controls: [I, ctl("dl", "電流元長 Δℓ", .5, 5, .5, 2, "cm"), ctl("theta", "Δℓ 與 +z 夾角", 0, 180, 5, 90, "°"), ctl("phi", "Δℓ 方位角", 0, 360, 5, 0, "°"), ...xyz(5, 12, 8)],
-      task: "將 Δℓ 設為 +x，先令 P 在 x 軸上，再移到 y 軸和 z 軸，觀察三維叉積。固定角度，把 r 加倍，比較 ΔB。"
-    },
-    {
       id: "straight", title: "有限／近似長直導線", controls: [I, ctl("half", "導線半長", 5, 35, 1, 24, "cm"), probe, ...xyz(0, 8, 6)],
       task: "在導線中垂面固定 P，增加線段長度，看看合磁場如何接近長直導線的 μ₀I/(2πr)。"
     },
