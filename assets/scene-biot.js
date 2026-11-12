@@ -263,8 +263,8 @@
         const arcR = Math.min(1, ph.r * .4);
         arc.geometry.dispose(); arc.geometry = lineGeo(Array.from({length: 41}, (_, k) => VA(along(arcR, theta * k / 40))));
         thLabel.position.copy(VA(along(arcR + .3, theta / 2)));
-        const tri = [], o = VA(E);
-        for (let k = 0; k < 40; k++) { const a = VA(along(ph.r, theta * k / 40)), b = VA(along(ph.r, theta * (k + 1) / 40)); tri.push(o.x, o.y, o.z, a.x, a.y, a.z, b.x, b.y, b.z); }
+        // Δℓ–r 平面只畫到 P 所在的截面為止：電流元 E、截面圓心 C、P 圍成的直角三角形（兩股 r cos θ、r sin θ，斜邊 r）
+        const o = VA(E), c = VA(ph.C), tri = [o.x, o.y, o.z, c.x, c.y, c.z, Pv.x, Pv.y, Pv.z];
         fan.geometry.dispose(); fan.geometry = new T.BufferGeometry(); fan.geometry.setAttribute("position", new T.Float32BufferAttribute(tri, 3));
         fan.visible = st.plane;
         // 垂直截面與同心圓磁力線：圓心在電流元延長線上，半徑 r sin θ
