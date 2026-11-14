@@ -6,12 +6,8 @@
   const beamModes=new Set(["particle","linear","cyclotron","plane-wave"]);
   const electroViewLabels={lines:"電力線",surface:"3D 電位地形",contours:"等電位線",profile:"沿軸剖面圖"};
   const sceneCaptions={
-    element:"銅線上的金色短節是選取的電流元。拖曳十字測點 P，改變量測位置。",
-    straight:"金色短節標出目前選取的電流元。拖曳十字測點 P，看看磁場讀值怎麼變。",
     compass:"紅色針尖指北。反轉電流，觀察磁針往哪一側偏。",
     pair:"金色短節標出選取的電流元。把十字測點 P 拖到兩線之間，比較磁場。",
-    loop:"拖曳十字測點 P，從線圈中心移到軸上和線圈外。",
-    solenoid:"旋轉銅線圈，或把十字測點 P 拖出管口，比較磁場讀值。",
     "field-lines":"紅、藍球分別代表正、負電荷。曲線表示電場走向，十字準星是可拖曳的測點 P。",
     charges:"曲線連接電位相同的位置。拖曳十字測點 P 會移動取樣切片。",
     plates:"銅色正板在 x 較小的一側，鋼色負板為 0 V。圖中只畫出理想無限大平行板的一部分。",
@@ -34,10 +30,7 @@
   };
   const url=(bench,mode)=>"#labs/"+bench.id+(mode?"/"+mode:"");
   const shortcuts={
-    "biot/element":[["平行", {x:16,y:0,z:0,theta:90,phi:0}],["垂直",{x:0,y:16,z:0,theta:90,phi:0}],["離開 xy 平面",{x:5,y:12,z:8,theta:90,phi:0}]],
     "biot/pair":[["回兩線中點",{x:0,y:0,z:0}],["移出平面",{x:0,y:0,z:8}]],
-    "biot/loop":[["圓心",{x:0,y:0,z:0}],["軸上 10 cm",{x:0,y:0,z:10}],["離軸",{x:8,y:6,z:10}]],
-    "biot/solenoid":[["管中心",{x:0,y:0,z:0}],["管外",{x:18,y:0,z:0}]],
     "potential-map/charges":[["等量異號中點",{q:6,q2:-6,x:0,y:0,z:0}],["等量同號中點",{q:6,q2:6,x:0,y:0,z:0}]],
     "potential-map/field-lines":[["+5 nC／−1 nC",{q:5,q2:-1}],["等量同號",{q:6,q2:6}],["等量異號",{q:6,q2:-6}],["單一正電荷",{q:6,q2:0}]],
     "magnetic-force/particle":[["平行：直線",{theta:0}],["垂直：圓周",{theta:90}],["斜入射：螺旋",{theta:65}]],

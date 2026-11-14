@@ -15,7 +15,7 @@
 
 | 2D／3D 工作臺 | 可比較的情境 |
 | --- | --- |
-| [必歐－沙伐定律](https://arpowchao.github.io/physics-iv/#labs/biot) | 單一電流元、有限直線、指南針、雙平行導線、圓線圈、有限螺線管。移動 P、逐段看 ΔB，讀取 B 的三個分量。 |
+| [電流的磁場](https://arpowchao.github.io/physics-iv/#labs/biot) | 指南針偏轉、雙平行導線的磁場疊加。電流元、直導線、圓線圈、螺線管統一在「必歐－沙伐定律」3D 模擬中，可看單一電流元 ΔB 與整條導線的總磁場 B。 |
 | [電力線與電位](https://arpowchao.github.io/physics-iv/#labs/potential-map) | 點電荷電力線與庫侖力、點電荷等電位線、平行板、帶電導體球。可切換通過 P 的等電位切片、沿 x 的 V(x)，也可記錄 A 後比較靜電力作功。 |
 | [磁力與電動機](https://arpowchao.github.io/physics-iv/#labs/magnetic-force) | 粒子軌跡、單一直導線、平行導線、線圈力矩與換向器。 |
 | [電磁感應](https://arpowchao.github.io/physics-iv/#labs/induction) | 滑棒、線圈進出場、磁棒、旋轉線圈、固定線圈改變 B、變壓器。拖時間同步看磁通量與電路讀值。 |

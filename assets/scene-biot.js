@@ -37,8 +37,20 @@
   const SHAPES = {
     curve: {name: "彎曲導線", pos: u => { const x = -14 + 28 * u; return [x, 1.2 * x * Math.exp(-x * x / 18), 0]; }, pick: s => (6 + 16 * s) / 28, closed: false, iAt: .2, s0: .5},
     straight: {name: "直導線", pos: u => [-16 + 32 * u, 0, 0], pick: s => (8 + 16 * s) / 32, closed: false, iAt: .2, s0: .5},
-    loop: {name: "圓線圈", pos: u => [3.2 * Math.cos(2 * Math.PI * u), 3.2 * Math.sin(2 * Math.PI * u), 0], pick: s => s, closed: true, iAt: .125, s0: .75}
+    loop: {name: "圓線圈", pos: u => [3.2 * Math.cos(2 * Math.PI * u), 3.2 * Math.sin(2 * Math.PI * u), 0], pick: s => s, closed: true, iAt: .125, s0: .75, P0: [0, 0, 0], fit: 15},
+    // 螺線管：一條連續的螺旋導線（半徑 2.2 m、長 12 m、10 匝），電流沿 +x 前進、繞 x 軸右旋 → 管內 B 沿 +x
+    solenoid: {name: "螺線管", pos: u => [-6 + 12 * u, 2.2 * Math.cos(2 * Math.PI * 10 * u), 2.2 * Math.sin(2 * Math.PI * 10 * u)], pick: s => .08 + .84 * s, closed: false, iAt: .5, s0: .5, P0: [0, 0, 0], n: 900, fit: 27}
   };
+  // 整條導線在 P 的磁場：把導線切成許多小段（每段都是一個電流元），逐段做必歐－沙伐再向量相加
+  const segCache = {};
+  const segments = shape => segCache[shape] || (segCache[shape] = (() => {
+    const S = SHAPES[shape], n = S.n || 360, pts = Array.from({length: n + 1}, (_, k) => S.pos(k / n));
+    return Array.from({length: n}, (_, k) => ({mid: mul(add(pts[k], pts[k + 1]), .5), dl: sub(pts[k + 1], pts[k])}));
+  })());
+  const totalField = (shape, P, I) => segments(shape).reduce((B, g) => {
+    const r = sub(P, g.mid), r2 = dot(r, r) + .0025, k = MU4PI * I / (r2 * Math.sqrt(r2));
+    return add(B, mul(cross(g.dl, r), k));
+  }, [0, 0, 0]);
   const frameAt = (shape, u) => {
     const S = SHAPES[shape], h = 1e-4, a = S.closed ? u - h : Math.max(0, u - h), b = S.closed ? u + h : Math.min(1, u + h);
     const E = S.pos(u), t = unit(sub(S.pos(b), S.pos(a)));
@@ -74,6 +86,7 @@
             <div><dt>sin θ</dt><dd data-r="s"></dd></div>
             <div class="bs-key"><dt>磁場 |ΔB|</dt><dd data-r="b"></dd></div>
             <div><dt>ΔB 方向</dt><dd data-r="d"></dd></div>
+            <div class="bs-key bs-total" data-row="total"><dt>整條導線的 |B|</dt><dd data-r="bt"></dd></div>
           </dl>
         </section>
         <section class="bs-panel bs-ctrl">
@@ -93,13 +106,14 @@
               <button type="button" data-t="section" aria-pressed="true">垂直截面</button>
               <button type="button" data-t="plane" aria-pressed="true">Δℓ–r 平面</button>
               <button type="button" data-t="circle" aria-pressed="true">同心圓磁力線</button>
+              <button type="button" data-t="total" aria-pressed="true">整條導線的總磁場 B</button>
             </div>
           </div>
         </section>
       </div>`;
     const $ = s => root.querySelector(s), $$ = s => [...root.querySelectorAll(s)];
     const host = $(".bs-canvas");
-    const st = {shape: "curve", s: 50, r: 3, t: 45, d: 0, rho: 0, p: 90, i: 2, only: false, section: true, plane: true, circle: true, flow: false, P: [0, 0, 0]};
+    const st = {shape: "curve", s: 50, r: 3, t: 45, d: 0, rho: 0, p: 90, i: 2, only: false, section: true, plane: true, circle: true, total: true, flow: false, P: [0, 0, 0]};
     for (const b of $$(".bs-fold")) b.addEventListener("click", () => { const p = b.closest(".bs-panel"); p.classList.toggle("folded"); b.textContent = p.classList.contains("folded") ? "▸" : "▾"; });
 
     const frame = () => frameAt(st.shape, SHAPES[st.shape].pick(st.s / 100));
@@ -107,6 +121,13 @@
     const placeP = () => {
       const f = frame(), t = st.t * Math.PI / 180, p = st.p * Math.PI / 180;
       st.P = add(f.E, mul(add(mul(f.t, Math.cos(t)), add(mul(f.e2, Math.sin(t) * Math.cos(p)), mul(f.e3, Math.sin(t) * Math.sin(p)))), st.r));
+    };
+    // 把 P 直接放在絕對位置 q，並換算成相對電流元的 r、θ、φ
+    const placeAt = q => {
+      const f = frame(), rv = sub(q, f.E), r = Math.max(len(rv), .05);
+      st.r = r; st.t = Math.acos(clamp(dot(rv, f.t) / r, -1, 1)) * 180 / Math.PI;
+      let p = Math.atan2(dot(rv, f.e3), dot(rv, f.e2)) * 180 / Math.PI; if (p < 0) p += 360; st.p = p;
+      placeP();
     };
     const physics = () => {
       const f = frame(), rv = sub(st.P, f.E), r = len(rv), c = cross(f.t, rv);
@@ -128,6 +149,7 @@
       $('[data-r="s"]').textContent = ph.s.toFixed(3);
       $('[data-r="b"]').textContent = num(ph.B) + " T";
       $('[data-r="d"]').textContent = "⊥ Δℓ 與 r，沿同心圓切線";
+      $('[data-r="bt"]').textContent = num(len(totalField(st.shape, st.P, st.i))) + " T";
       const fmt = {s: v => v.toFixed(1), d: v => v.toFixed(2), rho: v => v.toFixed(2), r: v => v.toFixed(2), t: v => v.toFixed(1), p: v => v.toFixed(0), i: v => v.toFixed(1)};
       for (const [id] of sliders) $(`[data-o="${id}"]`).textContent = fmt[id](st[id]) + " " + $(`[data-s="${id}"]`).dataset.u;
     }
@@ -142,14 +164,14 @@
     const setShape = k => {
       st.shape = k; st.s = SHAPES[k].s0 * 100; Object.assign(st, {r: 3, t: 45, p: 90});
       for (const b of $$("[data-shape]")) b.setAttribute("aria-pressed", String(b.dataset.shape === k));
-      placeP(); changed(); shapeDirty = true;
+      placeP(); if (SHAPES[k].P0) placeAt(SHAPES[k].P0); changed(); shapeDirty = true;
     };
     for (const b of $$("[data-shape]")) b.addEventListener("click", () => setShape(b.dataset.shape));
     placeP(); derive(); syncInputs(); readouts();
 
     let disposed = false, dirty = true, shapeDirty = true, raf = 0, cleanup = () => {};
     const api = {
-      state: () => ({...st, ...physics()}),
+      state: () => ({...st, ...physics(), Bt: totalField(st.shape, st.P, st.i)}),
       set(o) {
         if (o.shape && o.shape !== st.shape) setShape(o.shape);
         const {shape, ...rest} = o; Object.assign(st, rest);
@@ -214,6 +236,7 @@
       const pLabel = label("P", "bs-geo bs-big");
       const rArrow = arrowMesh(0x475569, .035), rLabel = label(vec("r"), "bs-geo");
       const bArrow = arrowMesh(0x1d4ed8, .055), bLabel = label(vec("ΔB"), "bs-mag bs-big");
+      const tArrow = arrowMesh(0x0f766e, .075), tLabel = label(vec("B"), "bs-tot bs-big");
       const arc = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({color: 0xdb2777})); scene.add(arc);
       const thLabel = label("θ", "bs-ang");
       const fan = new T.Mesh(new T.BufferGeometry(), new T.MeshBasicMaterial({color: 0xf5a524, transparent: true, opacity: .2, side: T.DoubleSide, depthWrite: false})); scene.add(fan);
@@ -232,9 +255,9 @@
       function rebuildWire() {
         const S = SHAPES[st.shape];
         if (wire) { scene.remove(wire); wire.geometry.dispose(); }
-        const pts = Array.from({length: 241}, (_, k) => VA(S.pos(k / 240)));
+        const n = S.n || 240, pts = Array.from({length: n + 1}, (_, k) => VA(S.pos(k / n)));
         const curve = new T.CatmullRomCurve3(pts, S.closed);
-        wire = new T.Mesh(new T.TubeGeometry(curve, S.closed ? 200 : 320, .12, 18, S.closed), mat(0xb8733a, {metalness: .35, roughness: .38})); scene.add(wire);
+        wire = new T.Mesh(new T.TubeGeometry(curve, S.n ? n * 2 : S.closed ? 200 : 320, S.n ? .085 : .12, S.n ? 12 : 18, S.closed), mat(0xb8733a, {metalness: .35, roughness: .38})); scene.add(wire);
         const f = frameAt(st.shape, S.iAt), base = add(f.E, mul(f.e3, .55));
         setArrow(iArrow, VA(sub(base, mul(f.t, .7))), VA(add(base, mul(f.t, .7))), .3);
         iLabel.position.copy(VA(add(base, mul(f.e3, .4))));
@@ -257,6 +280,10 @@
         const B0 = MU4PI * 2 * DL / 9, L = Math.min(3.5, 1.6 * ph.B / B0);
         setArrow(bArrow, Pv, VA(add(st.P, mul(ph.dir, L))), .3);
         bLabel.position.copy(VA(add(st.P, mul(ph.dir, L + .35))));
+        // 整條導線的總磁場 B：所有電流元 ΔB 的向量和（箭頭長度固定，大小看讀值）
+        const Bt = totalField(st.shape, st.P, st.i), bl = len(Bt), tOn = st.total && !st.only && bl > 0, bu = unit(Bt);
+        show(tArrow, tOn); show(tLabel, tOn);
+        if (tOn) { setArrow(tArrow, Pv, VA(add(st.P, mul(bu, 2.6))), .38); tLabel.position.copy(VA(add(st.P, mul(bu, 3)))); }
         // θ 弧與 Δℓ–r 扇形：在 t̂ 與 ρ̂ 張成的平面上
         const theta = Math.acos(clamp(dot(ph.rv, ph.t) / ph.r, -1, 1)), rh = ph.rhoHat;
         const along = (rad, a) => add(E, add(mul(ph.t, rad * Math.cos(a)), mul(rh, rad * Math.sin(a))));
@@ -296,8 +323,10 @@
       const views = {iso: [-6.1, -9.6, 6.5], front: [0, -14, .1], side: [14, 0, .1], top: [0, -.01, 14]};
       let tween = null, lastE = null;
       const go = (name, instant = false) => {
-        const f = frame(), target = add(f.E, mul(sub(st.P, f.E), .4)), [a, b, c] = views[name];
-        const to = VA(add(target, add(mul(f.t, a), add(mul(f.e2, b), mul(f.e3, c))))), look = VA(target);
+        const S = SHAPES[st.shape], f = frame(), target = S.P0 ? st.P : add(f.E, mul(sub(st.P, f.E), .4)), [a, b, c] = views[name];
+        // 線圈、螺線管整體比較大：把鏡頭拉遠到看得到整個線圈
+        const off = add(mul(f.t, a), add(mul(f.e2, b), mul(f.e3, c))), k = Math.max(1, (S.fit || 0) / len(off));
+        const to = VA(add(target, mul(off, k))), look = VA(target);
         for (const btn of $$("[data-view]")) btn.setAttribute("aria-pressed", String(btn.dataset.view === name));
         if (instant) { camera.position.copy(to); controls.target.copy(look); controls.update(); return; }
         tween = {from: camera.position.clone(), fromT: controls.target.clone(), to, look, t: 0};
@@ -366,8 +395,8 @@
 
   EM.scenes.push({id: "biot-savart", title: "必歐－沙伐定律：電流元的磁場", sections: ["2-2"], chapter: 2,
     lead: "彎曲導線上任一小段電流元，在 P 點產生的磁場朝哪裡？大小和 r、θ 有什麼關係？",
-    description: "彎曲導線、直導線或圓線圈上任選電流元，三維拖曳測點 P，看 r、θ、ΔB、Δℓ–r 平面與同心圓磁力線；可只顯示電流元。",
-    steps: ["按「只顯示電流元」，固定 r cos θ，把 r sin θ 加倍：r、θ、|ΔB| 各怎麼變？", "固定 r sin θ，把 r cos θ 從 0 調大（P 的截面往前移）：θ 怎麼變？|ΔB| 為什麼變小？r cos θ = 0 時 θ 是幾度？", "改變方位角 φ：|ΔB| 會變嗎？ΔB 的方向和同心圓磁力線有什麼關係？", "拖「電流元位置」換到導線上不同的一段（r cos θ、r sin θ 不變）：|ΔB| 會變嗎？ΔB 的方向跟著什麼轉？", "切到「側視圖」沿著電流元看：用右手定則判斷磁力線繞的方向。"],
+    description: "彎曲導線、直導線、圓線圈、螺線管上任選電流元，三維拖曳測點 P，看 r、θ、ΔB、Δℓ–r 平面與同心圓磁力線；也能看整條導線在 P 的總磁場，或只顯示電流元。",
+    steps: ["按「只顯示電流元」，固定 r cos θ，把 r sin θ 加倍：r、θ、|ΔB| 各怎麼變？", "固定 r sin θ，把 r cos θ 從 0 調大（P 的截面往前移）：θ 怎麼變？|ΔB| 為什麼變小？r cos θ = 0 時 θ 是幾度？", "改變方位角 φ：|ΔB| 會變嗎？ΔB 的方向和同心圓磁力線有什麼關係？", "拖「電流元位置」換到導線上不同的一段（r cos θ、r sin θ 不變）：|ΔB| 會變嗎？ΔB 的方向跟著什麼轉？", "切到「側視圖」沿著電流元看：用右手定則判斷磁力線繞的方向。", "選「圓線圈」：P 在圓心時，任一段電流元的 ΔB 方向都相同嗎？整圈的總磁場 B（青綠）朝哪？換成「螺線管」，P 放在管內與管外，總磁場各有什麼不同？"],
     takeaway: "ΔB 的方向垂直於 Δℓ 與 r 所決定的平面，大小與 sin θ 成正比、與 r² 成反比；繞電流元的延長線一圈，ΔB 都沿同心圓切線。整條導線在 P 的磁場，就是每一段電流元的 ΔB 向量相加。",
     full: true, mount: mountBiot});
 })();
