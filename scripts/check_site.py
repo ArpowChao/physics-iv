@@ -152,7 +152,7 @@ def run(base, out):
         assert bs() == "7.11 × 10⁻⁸ T", bs()
         st = page.evaluate("(()=>{const s=document.querySelector('#scene-root').sceneApi.state();return s})()")
         # ΔB 方向 = t̂ × r̂，與 r、電流元方向都垂直（彎曲導線上任一段皆然）
-        for shape, s in [("curve", 50), ("curve", 20), ("loop", 30), ("straight", 70)]:
+        for shape, s in [("curve", 50), ("curve", 20), ("loop", 30), ("straight", 70), ("solenoid", 35), ("solenoid", 80)]:
             st = page.evaluate(f"(()=>{{const a=document.querySelector('#scene-root').sceneApi;a.set({{shape:'{shape}'}});a.set({{s:{s}}});return a.state()}})()")
             dot = lambda u, v: sum(a * b for a, b in zip(u, v))
             assert abs(dot(st["dir"], st["rv"])) < 1e-9 and abs(dot(st["dir"], st["t"])) < 1e-9, st
@@ -160,6 +160,14 @@ def run(base, out):
             assert dot(cr, st["dir"]) > 0
             sin = (sum(c * c for c in cr) ** .5) / st["r"]
             assert abs(st["B"] - 1e-7 * 2 * .8 * sin / st["r"] ** 2) < 1e-15, st
+        # 整條導線的總磁場（逐段必歐－沙伐求和）：圓線圈圓心 B = μ0 I / 2R 沿 +z；螺線管中心 ≈ μ0 n I × 有限長修正，沿 +x
+        sa = "document.querySelector('#scene-root').sceneApi"
+        loop = page.evaluate(f"(()=>{{const a={sa};a.set({{shape:'loop'}});a.set({{i:2}});return a.state()}})()")
+        assert max(abs(x) for x in loop["P"]) < 1e-9 and abs(loop["Bt"][2] - 4e-7 * 3.141592653589793 * 2 / (2 * 3.2)) < 1e-9 and abs(loop["Bt"][0]) < 1e-12, loop
+        sol = page.evaluate(f"(()=>{{const a={sa};a.set({{shape:'solenoid'}});a.set({{i:2}});return a.state()}})()")
+        ideal = 4e-7 * 3.141592653589793 * (10 / 12) * 2 * (6 / (36 + 2.2 ** 2) ** .5)
+        assert max(abs(x) for x in sol["P"]) < 1e-9 and abs(sol["Bt"][0] / ideal - 1) < .03, (sol["Bt"], ideal)
+        # 螺線管導線是一條連續的螺旋：相鄰取樣點的間距都很小，沒有斷開
         # 換電流元位置時 r cos θ、r sin θ、φ、|ΔB| 都不變，P 跟著電流元移動
         a = page.evaluate("(()=>{const a=document.querySelector('#scene-root').sceneApi;a.set({shape:'curve'});a.set({s:50,d:1.5,rho:2.5,p:60});return a.state()})()")
         page.locator('[data-s="s"]').fill("80")

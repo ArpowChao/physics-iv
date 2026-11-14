@@ -141,7 +141,7 @@ html.has-full { overflow: hidden; }
 .bs-loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--sim-muted); }
 .bs-label { font: italic 600 17px/1 "Times New Roman", serif; color: var(--sim-ink); pointer-events: none; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 6px #fff; white-space: nowrap; }
 .bs-label.bs-big { font-size: 20px; } .bs-label.bs-small { font-size: 14px; }
-.bs-cur { color: var(--sim-cur); } .bs-field { color: var(--sim-field); } .bs-mag { color: var(--sim-mag); } .bs-ang { color: var(--sim-ang); } .bs-geo { color: var(--sim-geo); }
+.bs-cur { color: var(--sim-cur); } .bs-field { color: var(--sim-field); } .bs-mag { color: var(--sim-mag); } .bs-ang { color: var(--sim-ang); } .bs-tot { color: #0f766e; } .bs-geo { color: var(--sim-geo); }
 .bs-v { position: relative; display: inline-block; }
 .bs-v::before { content: "→"; position: absolute; left: 0; right: 0; top: -.68em; text-align: center; font: normal 400 .72em/1 system-ui, sans-serif; }
 .bs-panel { position: absolute; z-index: 2; backdrop-filter: blur(6px); }
@@ -159,7 +159,7 @@ dl.bs-body { display: grid; gap: 0; }
 .bs-read dl > div { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--sim-line); }
 .bs-read dl > div:last-child { border-bottom: 0; }
 .bs-read dt { color: var(--sim-muted); } .bs-read dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; color: var(--sim-ink); }
-.bs-read .bs-key dd { color: var(--sim-mag); }
+.bs-read .bs-key dd { color: var(--sim-mag); } .bs-read .bs-total dd { color: #0f766e; }
 .bs-read [data-r="dd"] { color: var(--sim-cur); } .bs-read [data-r="rho"] { color: var(--sim-field); } .bs-read [data-r="t"] { color: var(--sim-ang); }
 .bs-ctrl { right: 12px; top: 12px; width: 280px; }
 .bs-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; margin-bottom: 8px; padding: 3px; border-radius: 10px; background: #e9eef3; }

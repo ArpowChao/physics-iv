@@ -37,10 +37,10 @@ def run(base, out):
             )
 
         go("labs")
-        # 情境實驗與 3D 空間圖同一份清單：7 個情境實驗＋22 個工作臺情境
-        assert page.locator(".sim-card").count() == 29
+        # 情境實驗與 3D 空間圖同一份清單：7 個情境實驗＋19 個工作臺情境
+        assert page.locator(".sim-card").count() == 26
         modes = page.evaluate("EM.workbenches.flatMap(b=>b.modes.map(m=>['labs/'+b.id+'/'+m.id,m.controls]))")
-        assert len(modes) == 22
+        assert len(modes) == 19
         for route, controls in modes:
             go(route, guided=True)
             assert page.locator(".bench-modes [aria-current]").count() == 1
@@ -114,18 +114,11 @@ def run(base, out):
         graph.click(position={"x": size["width"] * .2, "y": size["height"] * .4})
         page.wait_for_function("document.querySelector('#bench-phase').value!=='71'")
 
-        # 單一電流元已改為獨立的 3D 情境實驗，舊網址要導向
-        page.goto(f"{base.rstrip('/')}/#labs/biot/element")
-        page.wait_for_function("location.hash==='#labs/biot-savart'")
-        # 螺線管側視（XZ）改畫剖面：每匝左右各一個 ⊙／⊗，左邊出紙面、右邊入紙面（I > 0，B 朝 +z）
-        go("labs/biot/solenoid")
-        page.click('[data-dimension="2d"]'); page.click('[data-plane="xz"]')
-        page.wait_for_function("document.querySelector('#bench-plot svg').dataset.projection==='xz'")
-        glyphs = page.evaluate("""[...document.querySelectorAll('#bench-plot svg circle[data-normal]')].map(c=>[+c.getAttribute('cx'), c.dataset.normal])""")
-        xs = sorted(x for x, _ in glyphs)
-        left = [n for x, n in glyphs if x < xs[0] + 3]; right = [n for x, n in glyphs if x > xs[-1] - 3]
-        assert len(left) == len(right) == 16 and set(left) == {"out"} and set(right) == {"in"}, (len(left), len(right), set(left), set(right))
-        go("labs/biot/straight")
+        # 單一電流元、直導線、圓線圈、螺線管已併入同一個 3D 情境實驗，舊網址要導向
+        for old in ["element", "straight", "loop", "solenoid"]:
+            page.goto(f"{base.rstrip('/')}/#labs/biot/{old}")
+            page.wait_for_function("location.hash==='#labs/biot-savart'")
+        go("labs/biot/pair")
         plot = page.locator("#bench-plot svg")
         before = plot.inner_html()
         box = plot.bounding_box()
@@ -143,10 +136,10 @@ def run(base, out):
         for width in [320, 390, 768, 1024, 1440]:
             page.set_viewport_size({"width": width, "height": 960})
             if width == 390:
-                go("labs/biot/straight")
-                page.get_by_role("combobox", name="實驗情境").select_option("loop")
-                page.wait_for_function("document.querySelector('main').dataset.route==='labs/biot/loop'")
-            for route in ["labs", "labs/biot/straight", "labs/potential-map/charges", "labs/potential-map/field-lines", "labs/potential-map/cavity", "labs/magnetic-force/particle",
+                go("labs/biot/pair")
+                page.get_by_role("combobox", name="實驗情境").select_option("compass")
+                page.wait_for_function("document.querySelector('main').dataset.route==='labs/biot/compass'")
+            for route in ["labs", "labs/biot/pair", "labs/potential-map/charges", "labs/potential-map/field-lines", "labs/potential-map/cavity", "labs/magnetic-force/particle",
                           "labs/particle-apps/cyclotron", "labs/particle-apps/aurora", "labs/induction/transformer", "labs/em-wave/plane-wave"]:
                 go(route, guided=True)
                 assert page.evaluate("document.documentElement.scrollWidth === innerWidth"), (width, route, "guided")
@@ -176,7 +169,7 @@ def run(base, out):
                     page.get_by_role("button", name="3D 空間").click()
         assert not errors, errors
         browser.close()
-    print("Verified guided comparisons and free exploration for all 22 scenes, including electrostatic line counts, depth, nulls, terrain, and mobile reflow.")
+    print("Verified guided comparisons and free exploration for all 19 scenes, including electrostatic line counts, depth, nulls, terrain, and mobile reflow.")
 
 
 if __name__ == "__main__":

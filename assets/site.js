@@ -11,7 +11,7 @@
   const lab = id => EM.labs.find(c => c.id === id);
   // 所有模擬一份清單：情境實驗與 3D 空間圖不再分成兩套，依節次排列。
   const modeSection = {"potential-map/charges":"1-3","potential-map/field-lines":"1-2","potential-map/plates":"1-3","potential-map/sphere":"1-3","potential-map/cavity":"1-3",
-    "biot/element":"2-2","biot/straight":"2-2","biot/compass":"2-1","biot/pair":"2-2","biot/loop":"2-2","biot/solenoid":"2-2",
+    "biot/compass":"2-1","biot/pair":"2-2",
     "magnetic-force/particle":"2-4","magnetic-force/wire":"2-3","magnetic-force/parallel":"2-3",
     "particle-apps/linear":"2-4","particle-apps/cyclotron":"2-4","particle-apps/aurora":"2-4",
     "induction/slide":"3-1","induction/enter":"3-1","induction/vary":"3-1","induction/rotate":"3-3","induction/transformer":"3-4","em-wave/plane-wave":"3-5"};
@@ -21,11 +21,11 @@
   ];
   const simsFor = sid => sims().filter(x=>x.section===sid);
   // 舊版「基礎示意」已由情境實驗與工作臺取代，保留網址導向
-  const legacyLabs = {coulomb:"coulomb-law",field:"efield",potential:"potential-map/plates",compass:"biot/compass",conductors:"biot/straight",
+  const legacyLabs = {coulomb:"coulomb-law",field:"efield",potential:"potential-map/plates",compass:"biot/compass",conductors:"biot-savart",
     wireforce:"magnetic-force/wire",particle:"b-particle",flux:"induction/vary",lenz:"magnet-coil",generator:"induction/rotate",transformer:"induction/transformer",wave:"em-wave",
-    "magnetic-force/motor":"dc-motor","induction/magnet":"magnet-coil","biot/element":"biot-savart"};
+    "magnetic-force/motor":"dc-motor","induction/magnet":"magnet-coil","biot/element":"biot-savart","biot/straight":"biot-savart","biot/loop":"biot-savart","biot/solenoid":"biot-savart"};
   const benchFor = sid => EM.workbenches.find(b=>b.sections.includes(sid));
-  const benchURL = (b,sid) => "#labs/"+b.id+({"1-1":"/field-lines","1-2":"/field-lines","2-1":"/compass","2-2":"/straight","2-3":"/wire","3-2":"/enter","3-3":"/rotate","3-4":"/transformer"}[sid]||"");
+  const benchURL = (b,sid) => "#labs/"+b.id+({"1-1":"/field-lines","1-2":"/field-lines","2-1":"/compass","2-2":"/pair","2-3":"/wire","3-2":"/enter","3-3":"/rotate","3-4":"/transformer"}[sid]||"");
   const particleLinks = () => link("#labs/particle-apps/linear","粒子加速器")+link("#labs/particle-apps/aurora","極光與磁鏡");
   const byChapter = id => EM.sections.filter(s=>s.id.startsWith(id+"-"));
   const stamp = id => String(id).padStart(2,"0");

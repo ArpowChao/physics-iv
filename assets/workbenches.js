@@ -257,24 +257,12 @@
   const sceneOut = (s, rows, legend, note, graph = "") => ({ diagram: s.finish(), rows, legend, note, graph });
   const biotModes = [
     {
-      id: "straight", title: "有限／近似長直導線", controls: [I, ctl("half", "導線半長", 5, 35, 1, 24, "cm"), probe, ...xyz(0, 8, 6)],
-      task: "在導線中垂面固定 P，增加線段長度，看看合磁場如何接近長直導線的 μ₀I/(2πr)。"
-    },
-    {
       id: "compass", title: "通電導線與指南針", controls: [I, ctl("distance", "指南針到導線的距離", 3, 24, 1, 8, "cm"), ctl("earth", "水平地磁分量", 0, 60, 5, 25, "μT")],
       task: "在 XY 平面讀指南針的偏轉角。反轉電流，觀察導線磁場的方向與合磁場如何改變。"
     },
     {
       id: "pair", title: "雙平行導線", controls: [I, ctl("spacing", "導線間距", 4, 22, 1, 14, "cm"), pick("relative", "兩線電流方向", [[1, "同向"], [-1, "反向"]], -1), probe, ...xyz(0, 0, 0)],
       task: "在兩線的正中間切換同向與反向。哪些分量相消？再讓 P 離開兩線所在平面。"
-    },
-    {
-      id: "loop", title: "圓線圈", controls: [I, radius, probe, ...xyz(0, 0, 10)],
-      task: "讓 P 先在圓線圈中心，再沿 z 軸移動；觀察單段磁場的分量如何疊加成軸向磁場。"
-    },
-    {
-      id: "solenoid", title: "有限長螺線管", controls: [I, radius, ctl("coil", "繞組長度", 8, 42, 1, 26, "cm"), ctl("turns", "線圈匝數", 3, 30, 1, 16, "匝"), probe, ...xyz(0, 0, 0)],
-      task: "在管中心、端口和管外量測。用長螺線管近似比較，找出它在哪些位置會偏離有限線圈的結果。"
     }
   ];
   function drawCompass(p, camera) {
@@ -303,44 +291,22 @@
       "導線磁場採長直導線近似，地磁僅取水平分量。兩磁場相加後決定指南針的水平指向。");
   }
   const biot = {
-    id: "biot", title: "必歐－沙伐定律：三維磁場工作臺", sections: ["2-1", "2-2"], modes: biotModes,
-    description: "轉動空間視角，移動觀測點 P，逐段追蹤電流元、位置向量、分磁場與合磁場。",
+    id: "biot", title: "電流的磁場：指南針與雙導線", sections: ["2-1", "2-2"], modes: biotModes,
+    description: "用指南針偵測通電導線的磁場，再把兩條平行導線的磁場向量相加。電流元、圓線圈與螺線管請見「必歐－沙伐定律」模擬。",
     formula: "ΔB = (μ₀ / 4π) · I(Δℓ × r̂) / r²",
     camera: { yaw: -32, pitch: 25, zoom: 1 },
     draw(mode, p, camera) {
       if (mode === "compass") return drawCompass(p, camera);
-      const m = P.biot(mode, p), e = m.selected, single = mode === "element";
-      const extent = single ? Math.max(23, e.d + 8) : mode === "straight" ? Math.max(24, p.half) :
-        mode === "solenoid" ? Math.max(21, p.coil * .62, p.radius * 1.4) : 24;
-      const s = scene(camera, extent, "電流分布與觀測點 P 的磁場向量");
-      const direction = unit(e.dl), planeEdge = single ? mul(direction, Math.min(18, e.d)) : e.dl;
-      if (camera.analysis) s.polygon([e.m, sum(e.m, planeEdge), m.point], C.amber, single ? .16 : .07);
-      if (mode === "element") {
-        const wire = mul(direction, Math.min(28, extent));
-        s.tube([sub(e.m, wire), sum(e.m, wire)], .92);
-      } else if ((mode === "loop" || mode === "solenoid") && s.plane && s.plane !== "xy") {
-        // 側視（XZ、YZ）：線圈正好側對畫面，改畫成課本的剖面圖——每一圈切過畫面的兩點標 ⊙（出紙面）／⊗（入紙面）
-        const side = sub([1, 1, 0], mul(s.toward, dot([1, 1, 0], s.toward))), h = unit([side[0], side[1], 0]);
-        m.paths.forEach(({ nodes, sign }) => {
-          const z = nodes[0][2], r = Math.hypot(nodes[0][0], nodes[0][1]);
-          s.draw([sum(mul(h, -r), [0, 0, z]), sum(mul(h, r), [0, 0, z])], C.amber, 1, "2 4", .45);
-          for (const k of [-1, 1]) {
-            const pos = sum(mul(h, k * r), [0, 0, z]);
-            // 線圈逆時針（從 +z 看）：在 (x, y) 處的電流方向為 (−y, x)
-            const tdir = mul([-pos[1], pos[0], 0], Math.sign(p.i || 1) * sign);
-            if (p.i) s.glyph(pos, C.amber, dot(tdir, s.toward) > 0); else s.dot(pos, C.amber, "", 2.6);
-          }
-        });
-      } else {
-        [...m.paths].sort((a, b) => s.depth(a.nodes[0]) - s.depth(b.nodes[0])).forEach(({ nodes, sign }, idx, arr) => {
-          s.tube(nodes, mode === "solenoid" ? .29 : .62);
-          const k = Math.floor(nodes.length * .3), a = nodes[k], b = nodes[Math.min(k + 3, nodes.length - 1)];
-          const dir = mul(unit(sub(b, a)), Math.sign(p.i) * sign);
-          if (p.i && (mode !== "solenoid" || idx === 0 || idx === arr.length - 1)) pointArrow(s, a, dir, 3.9, C.amber, mode !== "solenoid" || idx === 0 ? "I" : "", 2.5);
-        });
-      }
-      s.tube([e.a, e.b], single ? 1.08 : .84, "brass");
-      if (single && camera.comparisonExtent && !camera.analysis) s.draw([e.m, m.point], C.muted, 1.2, "4 4");
+      const m = P.biot(mode, p), e = m.selected;
+      const s = scene(camera, 24, "電流分布與觀測點 P 的磁場向量");
+      if (camera.analysis) s.polygon([e.m, sum(e.m, e.dl), m.point], C.amber, .07);
+      [...m.paths].sort((a, b) => s.depth(a.nodes[0]) - s.depth(b.nodes[0])).forEach(({ nodes, sign }) => {
+        s.tube(nodes, .62);
+        const k = Math.floor(nodes.length * .3), a = nodes[k], b = nodes[Math.min(k + 3, nodes.length - 1)];
+        const dir = mul(unit(sub(b, a)), Math.sign(p.i) * sign);
+        if (p.i) pointArrow(s, a, dir, 3.9, C.amber, "I", 2.5);
+      });
+      s.tube([e.a, e.b], .84, "brass");
       s.probe(m.point); s.arrow(e.m, m.point, C.blue, 1.9, "r");
       const plane = planes[camera.plane];
       const trueAngle = !plane || (Math.abs(dot(e.dl, plane.normal)) < 1e-8 && Math.abs(dot(e.rv, plane.normal)) < 1e-8);
@@ -353,19 +319,13 @@
       const valid = !m.unsafe && m.smallElement;
       if (valid && p.i) {
         pointArrow(s, m.point, e.bvec, 9, C.violet, "ΔB");
-        if (mode !== "element") pointArrow(s, m.point, m.total, 14, C.teal, "B", 3.2);
+        pointArrow(s, m.point, m.total, 14, C.teal, "B", 3.2);
       }
-      const rows = [item("r", "電流元到 P 的距離", fmt(e.d) + " cm"), item("theta", "Δℓ 與 r 夾角", m.angle === null ? "—" : fmt(m.angle, 1) + "°")];
-      if (!single) rows.push(item("part", "選取電流元 ΔB（x, y, z）", valid ? vec(e.bvec, 3) + " μT" : "—"));
-      rows.push(item("total", single ? "磁場量值 |ΔB|" : "磁場量值 |B|", valid ? mag(m.total, "μT", 3) : "—"),
-        item("vector", single ? "磁場 ΔB（x, y, z）" : "合磁場 B（x, y, z）", valid ? vec(m.total, 3) + " μT" : "—"));
-      if (mode === "straight") {
-        const r = Math.hypot(p.y, p.z);
-        rows.push(item("ideal", "長直導線近似（同一垂距）", r >= .45 ? fmt(20 * Math.abs(p.i) / r, 3) + " μT" : "—"));
-      }
-      if (mode === "solenoid") rows.push(item("ideal", "長螺線管內部近似", fmt(40 * Math.PI * Math.abs(p.i) * p.turns / p.coil, 3) + " μT"));
-      const sideCut = (mode === "loop" || mode === "solenoid") && s.plane && s.plane !== "xy";
-      return sceneOut(s, rows, [[C.amber, sideCut ? "線圈剖面：⊙ 電流出紙面、⊗ 入紙面" : "電流／Δℓ"], [C.blue, "電流元指向 P 的 r"], [C.violet, "分磁場 ΔB"], [C.teal, "向量和 B"]],
+      const rows = [item("r", "選取電流元到 P 的距離", fmt(e.d) + " cm"), item("theta", "Δℓ 與 r 夾角", m.angle === null ? "—" : fmt(m.angle, 1) + "°"),
+        item("part", "選取電流元 ΔB（x, y, z）", valid ? vec(e.bvec, 3) + " μT" : "—"),
+        item("total", "磁場量值 |B|", valid ? mag(m.total, "μT", 3) : "—"),
+        item("vector", "合磁場 B（x, y, z）", valid ? vec(m.total, 3) + " μT" : "—")];
+      return sceneOut(s, rows, [[C.amber, "電流／Δℓ"], [C.blue, "電流元指向 P 的 r"], [C.violet, "分磁場 ΔB"], [C.teal, "向量和 B"]],
         !m.smallElement ? "r 小於電流元長的 3 倍，不能把這段視為小電流元；請把 P 移遠或縮短 Δℓ。" : m.unsafe ? "P 太接近理想細導線；線徑未納入模型，此處不顯示量值。" :
           "Δℓ 沿傳統電流方向，公式中的 I 取量值。滑桿的正負表示電流相對基準的方向。箭長示意，分量用全域 x、y、z 座標。有限線段與螺線管以電流元疊加，省略外部回路，螺線管以同軸圓圈近似。");
     }
