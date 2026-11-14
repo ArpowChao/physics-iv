@@ -924,26 +924,10 @@
       "理想變壓器模型。兩組線圈共享每匝磁通量，電壓有效值比等於匝數比。副線圈開路仍有電壓，負載電流為零。圖中繞線數縮減示意。", graph);
   }
   const induction = {
-    id: "induction", title: "電磁感應與變壓器", sections: ["3-1", "3-2", "3-3", "3-4"],
-    description: "切換滑棒、進出磁場、磁棒、旋轉線圈、變動磁場與變壓器，比對 Φ、ε 與 I。",
+    id: "induction", title: "變壓器", sections: ["3-4"],
+    description: "改變原、副線圈匝數與負載，比對匝數比、電壓比與電流比。滑棒、進出磁場、發電機與改變磁場請見「電磁感應」模擬。",
     camera: { yaw: 21, pitch: 53, zoom: 1 },
     modes: [
-      {
-        id: "slide", title: "滑動導體棒", controls: [field, loopSize, ctl("speed", "棒速 v", .02, .18, .01, .12, "m/s"), duration, ...circuit],
-        task: "比對閉合與開路時的 ε、I 與阻力。迴路閉合時，檢查外力維持等速所供的功率是否等於熱功率。"
-      },
-      {
-        id: "enter", title: "線圈進出磁場", controls: [field, loopSize, duration, ...circuit],
-        task: "從 0% 拖到 100%，找出進入、全在場內、離開三段。哪個階段磁通量不為零，感應電動勢卻為零？"
-      },
-      {
-        id: "rotate", title: "旋轉線圈／發電機", controls: [field, loopSize, duration, turns, ctl("cycles", "觀察時間內旋轉圈數", 1, 4, 1, 1, "圈"), ...circuit],
-        task: "把線圈法線轉到與 B 平行、垂直，找出 Φ 與 ε 的峰值為何不同步。"
-      },
-      {
-        id: "vary", title: "固定線圈／改變 B", controls: [{ ...field, label: "起始磁場" }, ctl("end", "末端磁場（負值表示反向）", -1, 1, .05, .85, "T"), loopSize, duration, turns, ...circuit],
-        task: "線圈不動、面積不變，讓 B 增加、減少或反向。比較前後兩段 B 固定時的讀值。"
-      },
       {
         id: "transformer", title: "變壓器", controls: [ctl("voltage", "原線圈電壓有效值", 10, 120, 5, 60, "V"), ctl("primary", "原線圈匝數", 50, 300, 10, 150, "匝"),
         ctl("secondary", "副線圈匝數", 50, 300, 10, 300, "匝"), ctl("frequency", "交流頻率", 20, 100, 5, 60, "Hz"),

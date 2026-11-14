@@ -206,6 +206,25 @@ def run(base, out):
         page.wait_for_function("document.querySelector('#scene-root').classList.contains('is-full')")
         page.locator(".scene-fullbar button").click()
 
+        # 電磁感應 3D：ε = −N dΦ/dt（SI）；滑棒 Fv = I²R、進出磁場全在場內 ε = 0、發電機 Φ 與 ε 差 90°、改變 B 只有變化段有 ε
+        go("labs/induction-3d")
+        page.locator(".bs-canvas canvas").wait_for(state="attached")
+        ph = lambda mode, u, **o: page.evaluate("([m,u,o])=>document.querySelector('#scene-root').sceneApi.phys(m,u,o)", [mode, u, o])
+        s = ph("slide", .5)
+        assert abs(s["emf"] + .5 * .4 * 1) < 1e-12 and abs(s["I"] - s["emf"] / 1) < 1e-12 and abs(.5 * .4 * abs(s["I"]) * 1 - s["heat"]) < 1e-12, s
+        assert abs(ph("slide", 1)["Phi"] / ph("slide", .5)["Phi"] - (3 / 1.6)) < 1e-9
+        assert ph("slide", .5, closed=False)["I"] == 0 and abs(ph("slide", .5, closed=False)["emf"] + .2) < 1e-12
+        ent, mid, lv = ph("enter", .2), ph("enter", .5), ph("enter", .8)
+        assert ent["emf"] < 0 < lv["emf"] and mid["emf"] == 0 and abs(mid["Phi"] - .5 * .4 * .4) < 1e-12, (ent, mid, lv)
+        r0, r1 = ph("rotate", 0), ph("rotate", .25)
+        assert abs(r0["Phi"] - 20 * .5 * .16) < 1e-12 and abs(r0["emf"]) < 1e-12 and abs(r1["Phi"]) < 1e-9 and abs(r1["emf"] - 20 * .5 * .16 * 2 * 3.141592653589793 * 2) < 1e-9
+        v0, v1, v2 = ph("vary", .1), ph("vary", .5), ph("vary", .9)
+        assert v0["emf"] == 0 and v2["emf"] == 0 and abs(v1["emf"] + 20 * .16 * (.8 - .5) / (.5 * 4)) < 1e-12 and v2["Phi"] > v0["Phi"], (v0, v1, v2)
+        for mode in ["slide", "enter", "rotate", "vary"]:
+            page.locator(f'[data-mode="{mode}"]').click()
+            page.wait_for_function(f"document.querySelector('#scene-root').sceneApi.state().mode==='{mode}'")
+            assert not page.locator(".bs-wrap").evaluate("(e)=>/NaN|Infinity/.test(e.innerText)")
+
         exams = page.evaluate("EM.exams")
         assert len(exams) == 3
         all_ids = set()
