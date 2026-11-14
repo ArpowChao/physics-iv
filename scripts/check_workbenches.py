@@ -38,7 +38,7 @@ def run(base, out):
 
         go("labs")
         # 情境實驗與 3D 空間圖同一份清單：7 個情境實驗＋19 個工作臺情境
-        assert page.locator(".sim-card").count() == 26
+        assert page.locator(".sim-card").count() == 27
         modes = page.evaluate("EM.workbenches.flatMap(b=>b.modes.map(m=>['labs/'+b.id+'/'+m.id,m.controls]))")
         assert len(modes) == 19
         for route, controls in modes:
@@ -115,9 +115,9 @@ def run(base, out):
         page.wait_for_function("document.querySelector('#bench-phase').value!=='71'")
 
         # 單一電流元、直導線、圓線圈、螺線管已併入同一個 3D 情境實驗，舊網址要導向
-        for old in ["element", "straight", "loop", "solenoid"]:
+        for old, new in [("element", "biot-savart"), ("straight", "biot-savart"), ("loop", "biot-savart"), ("solenoid", "solenoid-field")]:
             page.goto(f"{base.rstrip('/')}/#labs/biot/{old}")
-            page.wait_for_function("location.hash==='#labs/biot-savart'")
+            page.wait_for_function(f"location.hash==='#labs/{new}'")
         go("labs/biot/pair")
         plot = page.locator("#bench-plot svg")
         before = plot.inner_html()
