@@ -141,7 +141,7 @@ html.has-full { overflow: hidden; }
 .bs-loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--sim-muted); }
 .bs-label { font: italic 600 17px/1 "Times New Roman", serif; color: var(--sim-ink); pointer-events: none; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 6px #fff; white-space: nowrap; }
 .bs-label.bs-big { font-size: 20px; } .bs-label.bs-small { font-size: 14px; }
-.bs-cur { color: var(--sim-cur); } .bs-field { color: var(--sim-field); } .bs-mag { color: var(--sim-mag); } .bs-ang { color: var(--sim-ang); } .bs-tot { color: #0f766e; } .bs-geo { color: var(--sim-geo); }
+.bs-cur { color: var(--sim-cur); } .bs-field { color: var(--sim-field); } .bs-mag { color: var(--sim-mag); } .bs-ang { color: var(--sim-ang); } .bs-tot { color: #0f766e; } .bs-vel { color: #16a34a; } .bs-frc { color: #7c3aed; } .bs-geo { color: var(--sim-geo); }
 .bs-v { position: relative; display: inline-block; }
 .bs-v::before { content: "→"; position: absolute; left: 0; right: 0; top: -.68em; text-align: center; font: normal 400 .72em/1 system-ui, sans-serif; }
 .bs-panel { position: absolute; z-index: 2; backdrop-filter: blur(6px); }
@@ -210,3 +210,5 @@ dl.bs-body { display: grid; gap: 0; }
 .bench-shell select { border: 1px solid var(--sim-line2); border-radius: 8px; background: #fff; color: var(--sim-text); }
 .bench-shell .bench-choices label { border-color: var(--sim-line); border-radius: 10px; }
 .bench-shell .bench-choices label:has(input:checked) { border-color: var(--sim-accent); background: var(--sim-accent-soft); }
+
+.bs-graph { display: block; width: calc(100% - 28px); margin: 6px 14px 0; }

@@ -2,7 +2,7 @@
   const {clamp}=EMPhysics;
   const memory=new Map();
   const defaultPlanes={"particle-apps/aurora":"xz","particle-apps/linear":"xz","magnetic-force/particle":"xz","magnetic-force/motor":"yz",
-    "induction/magnet":"xz","induction/rotate":"yz","induction/transformer":"xz"};
+    "induction/magnet":"xz","induction/transformer":"xz"};
   const beamModes=new Set(["particle","linear","cyclotron","plane-wave"]);
   const electroViewLabels={lines:"電力線",surface:"3D 電位地形",contours:"等電位線",profile:"沿軸剖面圖"};
   const sceneCaptions={
@@ -36,10 +36,7 @@
     "magnetic-force/particle":[["平行：直線",{theta:0}],["垂直：圓周",{theta:90}],["斜入射：螺旋",{theta:65}]],
     "magnetic-force/motor":[["0°",{theta:0}],["90°",{theta:90}],["180°",{theta:180}],["270°",{theta:270}]],
     "particle-apps/aurora":[["小夾角：到達參考面",{pitch:0,phase:100,emission:0}],["大夾角：磁鏡折返",{pitch:55,phase:60,emission:0}],["電子群沉降",{pitch:0,phase:100,emission:1}]],
-    "induction/enter":[["進入",{phase:18}],["全在場內",{phase:50}],["離開",{phase:82}]],
     "induction/magnet":[["接近",{phase:38}],["線圈中央",{phase:50}],["離開",{phase:62}]],
-    "induction/rotate":[["初始",{phase:0,cycles:1}],["四分之一圈",{phase:25,cycles:1}]],
-    "induction/vary":[["變化前",{phase:10}],["變化中",{phase:50}],["變化後",{phase:90}]]
   };
   EM.mountWorkbench=(root,bench,id)=>{
     const mode=bench.modes.find(m=>m.id===id)||bench.modes[0], key=bench.id+"/"+mode.id;

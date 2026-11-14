@@ -37,10 +37,10 @@ def run(base, out):
             )
 
         go("labs")
-        # 情境實驗與 3D 空間圖同一份清單：7 個情境實驗＋19 個工作臺情境
-        assert page.locator(".sim-card").count() == 27
+        # 情境實驗與 3D 空間圖同一份清單：7 個情境實驗＋15 個工作臺情境
+        assert page.locator(".sim-card").count() == 24
         modes = page.evaluate("EM.workbenches.flatMap(b=>b.modes.map(m=>['labs/'+b.id+'/'+m.id,m.controls]))")
-        assert len(modes) == 19
+        assert len(modes) == 15
         for route, controls in modes:
             go(route, guided=True)
             assert page.locator(".bench-modes [aria-current]").count() == 1
@@ -91,7 +91,7 @@ def run(base, out):
             page.get_by_role("button", name="3D 空間").click()
             page.locator("#bench-plot svg[data-projection='3d']").wait_for()
 
-        go("labs/induction/enter", guided=True)
+        go("labs/induction/transformer", guided=True)
         saved_readings = page.locator(".bench-evidence table").inner_text()
         plot = page.locator("#bench-plot svg")
         case_plot = plot.inner_html()
@@ -169,7 +169,7 @@ def run(base, out):
                     page.get_by_role("button", name="3D 空間").click()
         assert not errors, errors
         browser.close()
-    print("Verified guided comparisons and free exploration for all 19 scenes, including electrostatic line counts, depth, nulls, terrain, and mobile reflow.")
+    print("Verified guided comparisons and free exploration for all 15 scenes, including electrostatic line counts, depth, nulls, terrain, and mobile reflow.")
 
 
 if __name__ == "__main__":
